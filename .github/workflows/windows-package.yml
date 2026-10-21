@@ -1,0 +1,30 @@
+name: Windows installer
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/unified-v2-alpha]
+    paths: ['distribution/**', 'tools/package/**', 'requirements-build.txt', '.github/workflows/windows-package.yml']
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements-build.txt --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu --only-binary=llama-cpp-python
+      - run: python -m unittest discover -s tests -v
+      - name: Build app and per-user installer
+        shell: pwsh
+        run: ./tools/package/build.ps1 -Python python -Compiler 'C:/Program Files (x86)/Inno Setup 6/ISCC.exe'
+      - name: Verify packaged native runtime and UI
+        shell: pwsh
+        run: |
+          $output = Join-Path $env:RUNNER_TEMP 'anamnez-smoke.json'
+          $process = Start-Process dist/AnamnezAsistani/AnamnezAsistani.exe -ArgumentList @('--package-smoke', $output) -WindowStyle Hidden -PassThru -Wait
+          if ($process.ExitCode -ne 0 -or !(Test-Path $output)) { throw 'Packaged runtime smoke failed' }
+          Get-Content $output
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Anamnez-alpha1.2-Windows
+          path: dist/Anamnez-Asistani-Kurulum.exe

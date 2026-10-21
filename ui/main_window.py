@@ -29,11 +29,12 @@ from ui.note_panel import NotePanel
 from ui.clipboard import create_clipboard, ClipboardError
 from ui.clinical_assistant_tab import ClinicalAssistantTab
 from ui.settings_tab import build_settings_tab
+from ui.update_panel import UpdatePanel
 
 class AnamnezApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Anamnez Asistanı V2-alpha1.1")
+        self.root.title("Anamnez Asistanı V2-alpha1.2")
         self.root.geometry("1050x760")
         self.root.minsize(820, 600)
         self.values = dict(INITIAL_DATA)
@@ -66,7 +67,7 @@ class AnamnezApp:
     def _build_ui(self):
         header = ttk.Frame(self.root, padding=(12, 10))
         header.pack(fill="x")
-        ttk.Label(header, text="Anamnez Asistanı V2-alpha1.1", font=("Segoe UI", 16, "bold")).pack(anchor="w")
+        ttk.Label(header, text="Anamnez Asistanı V2-alpha1.2", font=("Segoe UI", 16, "bold")).pack(anchor="w")
         ttk.Label(
             header,
             text="Dikte için Türkçe Whisper modeli yerel olarak çalışır. Dikte ve hasta bilgileri dış servislere gönderilmez; yalnızca genel literatür aramaları PubMed'e iletilir.",
@@ -102,6 +103,9 @@ class AnamnezApp:
         settings_canvas.pack(side='left', fill='both', expand=True)
         settings_scroll.pack(side='right', fill='y')
         build_settings_tab(self, settings_container)
+        update_frame = ttk.Frame(self.tabs,padding=16)
+        self.tabs.add(update_frame,text='Güncelleme')
+        self.updates = UpdatePanel(self,update_frame)
         self.dictation_text.bind('<<Modified>>', self._transcript_changed)
         for variable in self.entry_variables.values():
             variable.trace_add('write', lambda *_: None if self._suppress_source_changes else self.note_panel.source_changed())

@@ -32,7 +32,7 @@ class UITests(unittest.TestCase):
         self.assertFalse(self.app.bridge.busy)
 
     def test_tabs_and_manual_fields(self):
-        self.assertEqual(len(self.app.tabs.tabs()),6)
+        self.assertEqual(len(self.app.tabs.tabs()),7)
         self.app.entries['tansiyon'].delete(0,'end');self.app.entries['tansiyon'].insert(0,'120/80')
         self.app._refresh_output()
         self.assertIn('120/80',self.app.output_text.get('1.0','end'))
