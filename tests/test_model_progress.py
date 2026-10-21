@@ -99,6 +99,7 @@ class ProgressUITests(unittest.TestCase):
         self.assertAlmostEqual(progress.bar.coords(progress.fill)[2],230*.37)
         self.assertEqual(progress.bar.itemcget(progress.fill,'fill'),'#22a447')
         self.assertEqual(progress.frame.pack_info()['side'],'left')
+        self.assertEqual(progress.frame.master.pack_slaves()[0],progress.frame)
 
     def test_ready_error_and_new_model_reset(self):
         progress=self.app.model_progress

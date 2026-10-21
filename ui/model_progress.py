@@ -18,7 +18,10 @@ class ModelDownloadProgress:
 
     def update(self,event):
         self.model=event.model
-        if not self.frame.winfo_manager():self.frame.pack(side='left',padx=(12,8),pady=4)
+        if not self.frame.winfo_manager():
+            siblings=self.frame.master.pack_slaves()
+            placement={'before':siblings[0]} if siblings else {}
+            self.frame.pack(side='left',padx=(12,8),pady=4,**placement)
         if event.phase=='downloading':
             percent=event.percent
             suffix=f'%{percent}' if percent is not None else 'boyut belirleniyor'
