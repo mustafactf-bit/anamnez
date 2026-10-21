@@ -33,7 +33,8 @@ def candidates(text: str) -> list[dict]:
     for source,target in SPELLINGS.items():
         for match in re.finditer(r'(?<!\w)'+re.escape(source)+r'(?!\w)',text,re.I):
             if any(match.start()<end and match.end()>start for start,end in protected):continue
-            value=target.upper() if match.group().isupper() else target.capitalize() if match.group()[0].isupper() else target
+            upper=target.translate(str.maketrans({'i':'İ','ı':'I'})).upper()
+            value=upper if match.group().isupper() else target.capitalize() if match.group()[0].isupper() else target
             edits.append({'start':match.start(),'end':match.end(),'source':match.group(),'replacement':value})
     return sorted(edits,key=lambda edit:edit['start'])
 

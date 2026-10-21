@@ -1,4 +1,4 @@
-# Anamnez Asistanı V2-alpha1
+# Anamnez Asistanı V2-alpha1.1
 
 Windows için tek birleşik Tkinter uygulaması. V1'in manuel giriş, etiketli
 dikte, CPU/INT8 faster-whisper, JSON/metin kaydı ve beş genel PubMed başlığı
@@ -8,16 +8,24 @@ Mevcut VBS başlatıcıları ve `anamnez_asistani.py` aynı V2 uygulamasını a�
 
 ## Ana akış: anamnez → tarihli pano → Miamed
 
-1. Yeni görüşme boş açılır; örnek hasta, normal muayene veya yapılmış işlem varsayımı yoktur.
-2. **Dikte metni** sekmesinde konuşun veya metni girin. İsterseniz **Hasta bilgileri** alanlarını doldurun.
-3. **Miamed taslağını hazırla** ile ilk sekmeye dönün. Girilmiş alanlar ve henüz alanlara aktarılmamış ham dikte korunarak taslak hazırlanır. Dikte için AI zorunlu değildir.
-4. Üstteki düzenleme alanında anamnezi kontrol edin, düzeltin. Yalnızca doğruladığınız bilgileri bırakın.
-5. **Onayla ve tamamla — otomatik kopyala** düğmesi o anki cihaz tarih/saatini ekler ve son önizlemenin aynısını panoya yazar; geri okuyarak doğrular.
-6. Miamed'de doğru hastanın anamnez alanının en altına imleci koyun ve `Ctrl+V` ile yapıştırın. İki baştaki satır sonu yeni kaydı öncekinden ayırır. Mevcut metni seçmeyin.
+Yeni görüşme boş açılır. Ana sekmede normal dikte akışı **üç tıklamadır**:
+
+1. **Dikteyi başlat.** Hazırlık bitip kayıt durumu göründüğünde konuşun.
+2. **Dikteyi bitir.** Kayıt sessizlikten dolayı bitmez. Transkripsiyon, yerel
+   yazım kontrolü ve taslak hazırlama otomatik yapılır; ayrı sekme/aktarma/kabul
+   tıklaması gerekmez. Son metni okuyup gerekiyorsa aynı alanda düzenleyin.
+3. **Onayla ve aktar (şimdilik panoya).** Tam metin hazır olduğunda düğme açılır;
+   onay anında tarih/saat eklenir, önizlemenin aynısı panoya yazılıp geri okunur.
+
+**Doğrudan Miamed bağlantısı henüz etkin değildir.** Mevcut sürümde hekim
+Miamed'in doğru hasta/başvuru ekranında anamnezin en altına `Ctrl+V` ile yapıştırır.
+Bu ek işlem nedeniyle hastane kaydı dahil uçtan uca üç tıklama hedefi henüz
+tamamlanmış sayılmaz. İki baştaki satır sonu önceki kaydı koruyarak ayırır.
+Miamed teknik JSON raporu geldikten sonra doğrudan aktarım ayrıca doğrulanacaktır.
 
 Miamed'e uygulama tarafından otomatik giriş/yazma yapılmaz; yer ve hasta seçimi
 hekimdedir. Gerçek Miamed ekranında kabul testi henüz yapılmadı. Ayrıntılar:
-[V2-alpha1 doğrulama ve kabul raporu](docs/ALPHA1_MIAMED.md).
+[V2-alpha1.1 sürüm ve kabul raporu](docs/ALPHA1_1.md).
 
 Hastanedeki Windows Miamed ekranının salt okunur teknik ön incelemesi için
 [Miamed Ekran Kontrolü](tools/screencheck/README.md) pilot aracı eklendi.
@@ -37,10 +45,28 @@ Windows pano geçmişi ve sistemin cihazlar arası pano eşitlemesi uygulama
 tarafından yönetilmez. Windows'ta standart Unicode pano içeriği uygulama kapansa
 da sistemde kalır; yeni hasta öncesi **Yeni görüşme** kullanılmalıdır.
 
-Metin kaydı düzenlenmiş önizlemeyi korur. JSON kaydı `_note_draft` içinde taslak,
-ham dikte ve varsa son onaylı kopyayı yerel olarak saklar. Yüklenen kayıt yeniden
-incelenip onaylanır; otomatik kopyalanmaz. Son düzenlemeleri taşıyan taslağı
-yenilemeden önce onay istenir. Boş başlıklar ve `...` yer tutucuları çıktıya girmez.
+**Üretim modu:** metin/JSON kaydı yalnızca güncel hekim onayından sonra yapılır.
+`_note_draft` yalnızca son onaylı metin/tarih bilgisini taşır; ham transkript ve
+eski `dictation_applied` metni yazılmaz. Onayda geçici dikte, kaynak snapshot'ı
+ve editör undo geçmişi bırakılır. Bu, işletim sistemi belleği/pagefile üzerinde
+adli düzeyde sıfırlama garantisi değildir. Eski dosyaların ham uzantıları üretim
+modunda geri yüklenmez; orijinal dosyalar otomatik değiştirilmez/silinmez.
+
+**Test modu:** Ayarlar'dan açıkça etkinleştirilir; ana ekranda belirgin uyarı
+görünür. Sentetik/izinli veride ham-düzeltilmiş eşler kalite testi için JSON'a
+yazılabilir. Gerçek kullanımda kapalı tutun. Yüklenen kayıt her modda yeniden
+incelenip onaylanır; otomatik kopyalanmaz. Boş başlıklar/`...` çıktıya girmez.
+
+## Hafif yerel yazım kontrolü
+
+Varsayılan olarak gözden geçirilmiş küçük yazım sözlüğü kullanılır. Örneğin
+`hiper tansiyon` → `hipertansiyon`. GGUF ayarlıysa yerel model, bu sözlüğün
+metindeki aday düzeltmelerinden uygun olanları otomatik seçer. Kaynak konumu ve
+kelime eşleşmesi doğrulanır; modelin serbest yeniden yazımı kabul edilmez.
+İlaç isimleri tahmin edilmez; doz/sayı/birim/negasyon değiştiren öneriler reddedilir.
+Sözlük dışı kelimeleri kapsayan genel bir Türkçe/tıbbi düzeltme başarısı iddia
+edilmez. Hekim son metni inceler. Model yoksa veya hata verirse güvenli sözlükle
+akış devam eder; ek onay penceresi açılmaz. Ayarlar'dan yazım kontrolü kapatılabilir.
 
 ## Kurulum
 
@@ -98,7 +124,7 @@ Bağımsız yerel model kontrolü:
   hastaya özel AI değerlendirmesi değildir.
 - **Anamnez • Miamed:** düzenleme, tarihli otomatik pano, metin/JSON kaydı ve V1 JSON yüklemesi.
 - **Ayarlar:** GGUF yolu, thread/bağlam/çıktı boyutları, Whisper modeli, düşük
-  RAM, retmax/top-k, timeout/retry/cache ve gerçek sorguyu gösterme seçenekleri.
+  RAM, retmax/top-k, timeout/retry/cache, yazım kontrolü ve açık test modu seçenekleri.
 
 ## Mahremiyet ve kaynaklar
 
@@ -144,7 +170,8 @@ python -m benchmarks.run_benchmark --model "C:\modeller\model.gguf" --output ben
 
 Unit testler sentetik veri ve model test double'ları kullanır. Gerçek Tk testleri
 gizli pencereler açar; ekran yoksa atlanır. CI: Windows ve Linux/Xvfb, Python
-3.10/3.12. Yerel son kontrol: 52 test geçti; gerçek Windows panosu ve mevcut test metninin altına yapıştırma dahil.
+3.10/3.12. Yerel son kontrol: 71 test geçti; gerçek Windows panosu, kayıt altına ekleme,
+üç düğme komutuyla worker akışı ve üretimde ham metin yazılmaması dahil.
 
 Benchmark gerçek modelle alan bazlı exact-match, soru şema geçerliliği, güvenli
 sorgu oranı, citation membership, süre, process peak RAM ve çıktı tokenı ölçer.

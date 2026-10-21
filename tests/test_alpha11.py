@@ -25,6 +25,9 @@ class CorrectionTests(unittest.TestCase):
         self.assertNotIn('Hiper tansiyon',result.text)
         self.assertFalse(hasattr(result,'raw'))
 
+    def test_turkish_uppercase_spelling_is_preserved(self):
+        self.assertEqual(correct_transcript('HİPER TANSİYON VAR.').text,'HİPERTANSİYON VAR.')
+
     def test_local_model_can_only_select_reviewed_patches(self):
         engine=Mock();engine.generate_json.return_value={'edits':candidates(RAW)}
         result=correct_transcript(RAW,engine)
