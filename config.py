@@ -28,35 +28,10 @@ FIELDS = {
     "oneri": "Öneri",
 }
 
-INITIAL_DATA = {
-    "boy": "...",
-    "kilo": "...",
-    "sikayet": "Halsizlik, yorgunluk, kilo verememe şikâyeti ile başvuruyor.",
-    "ozgecmis": "Bilinen PCOS ve diyabet tanıları mevcut.",
-    "soygecmis_anne": "Diyabet (+)",
-    "soygecmis_baba": "...",
-    "soygecmis_kardes": "...",
-    "ilaclar": "Vasoxen",
-    "genel_durum": "İYİ, BİLİNCİ AÇIK, KOOPERE",
-    "tansiyon": "...",
-    "nabiz": "...",
-    "ates": "...",
-    "solunum": "...",
-    "bb": "KONJONKTİVALAR DOĞAL, İKTER YOK, SİYANOZ YOK",
-    "kvs": "S1+S2+ RİTMİK, DÜZENLİ",
-    "sols": "H2HTSEK, RAL YOK, RONKÜS YOK",
-    "batin": "DOĞAL, DEFANS YOK, REBOUND YOK",
-    "ext": "NABIZLAR AÇIK, PTÖ YOK",
-    "aks": "...",
-    "hba1c": "...",
-    "st4": "...",
-    "tsh": "...",
-    "kcft": "...",
-    "bft": "...",
-    "goruntuleme": "...",
-    "ontani": "PCOS, Diyabet, Halsizlik ve Yorgunluk (etiyoloji araştırılıyor)",
-    "oneri": "Laboratuvar tetkikleri sonrası tedavi planlanacak.",
-}
+# New encounters are blank. Findings and completed actions must be explicit.
+INITIAL_DATA = {key: '' for key in FIELDS}
+VERSION = '2.0.0-alpha.1'
+
 
 RECOMMENDATIONS = [
     (

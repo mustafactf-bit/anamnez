@@ -3,43 +3,10 @@ import re
 from config import FIELDS, LABELS
 
 def format_note(data):
-    date = datetime.datetime.now().strftime("%d.%m.%Y")
-    return f"""TARİH: {date:<20} BOY: {data['boy']:<6} CM      KİLO: {data['kilo']:<6} KG
-ŞİKÂYETİ:
-{data['sikayet']}
-
-ÖZGEÇMİŞİ:
-{data['ozgecmis']}
-
-SOYGEÇMİŞİ:
-ANNE: {data['soygecmis_anne']}
-BABA: {data['soygecmis_baba']}
-KARDEŞ: {data['soygecmis_kardes']}
-
-KULLANDIĞI İLAÇLAR:
-{data['ilaclar']}
-
-FİZİK MUAYENE:
-GENEL DURUMU: {data['genel_durum']}
-TANSİYON: {data['tansiyon']:<15} NABIZ: {data['nabiz']:<15} ATEŞ: {data['ates']:<15} SOL.SAYISI: {data['solunum']}
-BB: {data['bb']}
-KVS: {data['kvs']}
-SOLS: {data['sols']}
-BATIN: {data['batin']}
-EXT: {data['ext']}
-
-LABORATUVAR:
-AKŞ: {data['aks']:<10} HbA1c: {data['hba1c']:<10} sT4: {data['st4']:<10} TSH: {data['tsh']:<10} KCFT: {data['kcft']:<10} BFT: {data['bft']}
-
-GÖRÜNTÜLEME (USG/BT/MR/SİNTİGRAFİ):
-{data['goruntuleme']}
-
-ÖNTANI: {data['ontani']}
-ÖNERİ: {data['oneri']}
-
-1- HASTA BİLGİLENDİRİLDİ, İLAÇLARI ANLATILDI
-2- POLİKLİNİK KONTROLÜ ÖNERİLDİ
-"""
+    """Format entered facts only; blank encounters produce no clinical content."""
+    from note_workflow import build_note_body, approve_note
+    body = build_note_body(data)
+    return approve_note(body).text if body else ''
 
 def parse_dictation(text, data):
     updated = []

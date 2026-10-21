@@ -22,17 +22,22 @@ from literature.pubmed_client import PubMedClient
 from speech.whisper_engine import WhisperEngine
 from speech.audio_recorder import record_audio
 from ui.worker import WorkerBridge
+from ui.note_panel import NotePanel
+from ui.clipboard import create_clipboard, ClipboardError
 from ui.clinical_assistant_tab import ClinicalAssistantTab
 from ui.settings_tab import build_settings_tab
 
 class AnamnezApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Anamnez Asistanı V2 Alpha")
+        self.root.title("Anamnez Asistanı V2-alpha1")
         self.root.geometry("1050x760")
         self.root.minsize(820, 600)
         self.values = dict(INITIAL_DATA)
         self.entries = {}
+        self.entry_variables = {}
+        self._dictation_applied = ''
+        self.clipboard = create_clipboard(root)
         self.reference_ids = []
         self._recording = False
         self._recording_stop = None
@@ -54,7 +59,7 @@ class AnamnezApp:
     def _build_ui(self):
         header = ttk.Frame(self.root, padding=(12, 10))
         header.pack(fill="x")
-        ttk.Label(header, text="Anamnez Asistanı V2 Alpha", font=("Segoe UI", 16, "bold")).pack(anchor="w")
+        ttk.Label(header, text="Anamnez Asistanı V2-alpha1", font=("Segoe UI", 16, "bold")).pack(anchor="w")
         ttk.Label(
             header,
             text="Dikte için Türkçe Whisper modeli yerel olarak çalışır. Dikte ve hasta bilgileri dış servislere gönderilmez; yalnızca genel literatür aramaları PubMed'e iletilir.",
@@ -67,10 +72,10 @@ class AnamnezApp:
         self.dictation_tab = ttk.Frame(self.tabs, padding=8)
         self.recommendations_tab = ttk.Frame(self.tabs, padding=8)
         self.output_tab = ttk.Frame(self.tabs, padding=8)
-        self.tabs.add(self.form_tab, text="Hasta bilgileri")
+        self.tabs.add(self.output_tab, text="Anamnez • Miamed")
         self.tabs.add(self.dictation_tab, text="Dikte metni")
+        self.tabs.add(self.form_tab, text="Hasta bilgileri")
         self.tabs.add(self.recommendations_tab, text="5 değerlendirme önerisi")
-        self.tabs.add(self.output_tab, text="Anamnez çıktısı")
         self._build_form()
         self._build_dictation()
         self._build_recommendations()
@@ -82,6 +87,8 @@ class AnamnezApp:
         self.tabs.add(settings_frame, text='Ayarlar')
         build_settings_tab(self, settings_frame)
         self.dictation_text.bind('<<Modified>>', self._transcript_changed)
+        for variable in self.entry_variables.values():
+            variable.trace_add('write', lambda *_: self.note_panel.source_changed())
         self.status = tk.StringVar(value="Hazır.")
         ttk.Label(self.root, textvariable=self.status, anchor="w", padding=(12, 4)).pack(fill="x")
 
@@ -96,8 +103,9 @@ class AnamnezApp:
         scrollbar.pack(side="right", fill="y")
         for row, (key, label) in enumerate(FIELDS.items()):
             ttk.Label(container, text=label).grid(row=row, column=0, sticky="nw", padx=(0, 12), pady=4)
-            entry = ttk.Entry(container, width=92)
-            entry.insert(0, self.values[key])
+            variable = tk.StringVar(value=self.values[key])
+            self.entry_variables[key] = variable
+            entry = ttk.Entry(container, width=92, textvariable=variable)
             entry.grid(row=row, column=1, sticky="ew", pady=4)
             self.entries[key] = entry
         container.columnconfigure(1, weight=1)
@@ -108,7 +116,7 @@ class AnamnezApp:
     def _build_dictation(self):
         ttk.Label(
             self.dictation_tab,
-            text="Türkçe konuşmayı yerel Whisper modeliyle yazıya çevirebilir veya Gemini'den aldığınız metni yapıştırabilirsiniz. Ses kaydedilmez ya da bir sunucuya gönderilmez.",
+            text="Türkçe konuşmayı yerel Whisper modeliyle yazıya çevirebilir veya metni kendiniz girebilirsiniz. Ses kaydedilmez ya da bir sunucuya gönderilmez.",
             wraplength=950,
         ).pack(anchor="w", pady=(0, 8))
         controls = ttk.Frame(self.dictation_tab)
@@ -136,6 +144,7 @@ class AnamnezApp:
         self.dictation_text.pack(fill="both", expand=True)
         buttons = ttk.Frame(self.dictation_tab)
         buttons.pack(fill="x", pady=(8, 0))
+        ttk.Button(buttons, text="Miamed taslağını hazırla", command=self._prepare_miamed).pack(side="left", padx=(0,8))
         ttk.Button(buttons, text="Dikteyi alanlara aktar", command=self._apply_dictation).pack(side="left")
         ttk.Button(buttons, text="Dikte alanını temizle", command=lambda: self.dictation_text.delete("1.0", "end")).pack(
             side="left", padx=8
@@ -162,6 +171,7 @@ class AnamnezApp:
             messagebox.showerror("Whisper modeli", "Listeden geçerli bir Whisper modeli seçin.")
             return
         self._recording = True
+        self.note_panel.invalidate('Yeni dikte başladı. Kayıt ve transkripsiyondan sonra taslağı güncelleyip onaylayın.')
         self._recording_stop = threading.Event()
         self.record_button.configure(text="Whisper yükleniyor...", state="disabled")
         self.status.set(
@@ -293,16 +303,11 @@ class AnamnezApp:
         self.recommendation_text.configure(state="disabled")
 
     def _build_output(self):
-        buttons = ttk.Frame(self.output_tab)
-        buttons.pack(fill="x", pady=(0, 8))
-        ttk.Button(buttons, text="Çıktıyı oluştur / yenile", command=self._refresh_output).pack(side="left")
-        ttk.Button(buttons, text="Metni panoya kopyala", command=self._copy_output).pack(side="left", padx=8)
-        ttk.Button(buttons, text="Metin dosyası olarak kaydet", command=self._save_output).pack(side="left")
-        ttk.Button(buttons, text="Hasta verisini JSON kaydet", command=self._save_json).pack(side="left", padx=8)
-        ttk.Button(buttons, text="JSON dosyası aç", command=self._load_json).pack(side="left")
-        self.output_text = tk.Text(self.output_tab, wrap="word", height=27)
-        self.output_text.pack(fill="both", expand=True)
-        self._refresh_output()
+        self.note_panel = NotePanel(self, self.output_tab)
+
+    def _prepare_miamed(self):
+        if self.note_panel.prepare():
+            self.tabs.select(self.output_tab)
 
     def _read_form(self):
         for key, entry in self.entries.items():
@@ -318,26 +323,24 @@ class AnamnezApp:
         if not text:
             messagebox.showinfo("Dikte metni", "Önce dikte metnini yapıştırın.")
             return
+        if text == self._dictation_applied:
+            self.status.set('Bu dikte zaten alanlara aktarıldı; tekrar eklenmedi.')
+            return
         self._read_form()
         updated = parse_dictation(text, self.values)
+        self._dictation_applied = text
         self._sync_form()
         self._refresh_output()
         self.status.set("Güncellenen alanlar: " + ", ".join(dict.fromkeys(updated)))
         self.tabs.select(self.form_tab)
 
     def _refresh_output(self):
-        self._read_form()
-        self.output_text.delete("1.0", "end")
-        self.output_text.insert("1.0", format_note(self.values))
+        return self.note_panel.prepare()
 
     def _copy_output(self):
-        self._refresh_output()
-        self.root.clipboard_clear()
-        self.root.clipboard_append(self.output_text.get("1.0", "end-1c"))
-        self.status.set("Anamnez metni panoya kopyalandı.")
+        return self.note_panel.complete()
 
     def _save_output(self):
-        self._refresh_output()
         path = filedialog.asksaveasfilename(
             title="Anamnez metnini kaydet",
             defaultextension=".txt",
@@ -345,7 +348,7 @@ class AnamnezApp:
         )
         if path:
             try:
-                Path(path).write_text(self.output_text.get("1.0", "end-1c"), encoding="utf-8")
+                Path(path).write_text(self.note_panel.export_text(), encoding="utf-8")
             except OSError:
                 messagebox.showerror('Kayıt', 'Metin kaydedilemedi. Konumu ve yazma iznini kontrol edin.')
                 return
@@ -360,24 +363,40 @@ class AnamnezApp:
         )
         if path:
             try:
-                save_patient(path, self.values)
+                save_patient(path, {**self.values, '_note_draft': self.note_panel.snapshot()})
             except OSError:
                 messagebox.showerror('Kayıt', 'Dosya kaydedilemedi. Konumu ve yazma iznini kontrol edin.')
                 return
             self.status.set("Hasta verisi kaydedildi: " + path)
 
     def _load_json(self):
+        if self._recording_stop is not None:
+            self.status.set('Önce mikrofon kaydının ve transkripsiyonun bitmesini bekleyin.')
+            return
         path = filedialog.askopenfilename(
             title="Hasta verisini aç", filetypes=[("JSON dosyası", "*.json"), ("Tüm dosyalar", "*.*")]
         )
         if not path:
             return
         try:
-            self.values = load_patient(path)
+            loaded = load_patient(path)
         except (OSError, json.JSONDecodeError, ValueError) as error:
             messagebox.showerror("Dosya açılamadı", str(error))
             return
+        if not self._leave_visit():
+            return
+        self.values = loaded
         self.dictation_text.delete('1.0','end')
+        saved_note = loaded.get('_note_draft')
+        if isinstance(saved_note, dict):
+            transcript = saved_note.get('transcript', '')
+            applied = saved_note.get('dictation_applied', '')
+            if isinstance(transcript, str) and len(transcript) <= 1_000_000:
+                self.dictation_text.insert('1.0', transcript)
+            self._dictation_applied = applied if isinstance(applied, str) else ''
+        else:
+            self._dictation_applied = ''
+        self.dictation_text.edit_modified(False)
         self.clinical.invalidate()
         extension = self.values.get('_v2')
         if isinstance(extension, dict):
@@ -390,8 +409,8 @@ class AnamnezApp:
                 self.clinical.structured = restored
                 self.clinical._display(self.clinical.facts, json.dumps(restored,ensure_ascii=False,indent=2))
         self._sync_form()
-        self._refresh_output()
-        self.status.set("Hasta verisi yüklendi.")
+        self.note_panel.restore(loaded.get('_note_draft'))
+        self.status.set("Hasta verisi yüklendi. Metni kontrol edip yeniden onaylayın.")
 
     def _start_reference_search(self):
         if self.bridge.busy:
@@ -413,6 +432,7 @@ class AnamnezApp:
     def _transcript_changed(self, _event=None):
         if self.dictation_text.edit_modified():
             self.clinical.invalidate()
+            self.note_panel.source_changed()
             self.dictation_text.edit_modified(False)
 
     def _reference_error(self, error):
@@ -430,3 +450,39 @@ class AnamnezApp:
         self._render_recommendations(id_sets, summaries)
         total = sum(len(ids) for ids in id_sets)
         self.status.set(f"PubMed araması tamamlandı; {total} kayıt bulundu.")
+
+    def _leave_visit(self):
+        """Do not discard a local draft or leave our previous note on the clipboard."""
+        if (self.note_panel.body() or any(entry.get().strip() for entry in self.entries.values())
+                or self.dictation_text.get('1.0','end-1c').strip()):
+            if not messagebox.askyesno('Görüşmeden ayrıl',
+                    'Mevcut görüşme ekrandan kaldırılacak. Kaydetmediğiniz bilgiler kaybolabilir. Devam edilsin mi?'):
+                return False
+        try:
+            self.note_panel.clear_owned_clipboard()
+        except ClipboardError:
+            messagebox.showerror('Pano temizlenemedi',
+                'Önceki anamnez panodan temizlenemedi. Yeniden deneyin; yeni görüşme henüz açılmadı.')
+            return False
+        return True
+
+    def _new_visit(self):
+        """Reset every patient-specific state; prevent delayed speech crossing patients."""
+        if self._recording_stop is not None:
+            self.status.set('Önce mikrofon kaydının ve transkripsiyonun bitmesini bekleyin.')
+            return False
+        if not self._leave_visit():
+            return False
+        self.values = dict(INITIAL_DATA)
+        self._dictation_applied = ''
+        self._sync_form()
+        self.dictation_text.delete('1.0','end')
+        self.dictation_text.edit_modified(False)
+        self.clinical.invalidate()
+        self.reference_ids.clear()
+        self._render_recommendations(None, None)
+        self.note_panel._set_body('')
+        self.note_panel.state.set('Yeni görüşme. Önceki hasta bilgileri temizlendi.')
+        self.status.set('Yeni görüşme hazır.')
+        self.tabs.select(self.output_tab)
+        return True

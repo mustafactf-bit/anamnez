@@ -1,9 +1,42 @@
-# Anamnez Asistanı V2 Alpha
+# Anamnez Asistanı V2-alpha1
 
 Windows için tek birleşik Tkinter uygulaması. V1'in manuel giriş, etiketli
 dikte, CPU/INT8 faster-whisper, JSON/metin kaydı ve beş genel PubMed başlığı
-korunur; **Klinik Asistan** ve **Ayarlar** sekmeleri eklenir. Ayrı V1 ürünü yoktur.
+korunur. Ana öncelik tarihli anamnezi Miamed'e yapıştırmaya hazırlamaktır.
+**Klinik Asistan** ve **Ayarlar** aynı uygulamadadır. Ayrı V1 ürünü yoktur.
 Mevcut VBS başlatıcıları ve `anamnez_asistani.py` aynı V2 uygulamasını açar.
+
+## Ana akış: anamnez → tarihli pano → Miamed
+
+1. Yeni görüşme boş açılır; örnek hasta, normal muayene veya yapılmış işlem varsayımı yoktur.
+2. **Dikte metni** sekmesinde konuşun veya metni girin. İsterseniz **Hasta bilgileri** alanlarını doldurun.
+3. **Miamed taslağını hazırla** ile ilk sekmeye dönün. Girilmiş alanlar ve henüz alanlara aktarılmamış ham dikte korunarak taslak hazırlanır. Dikte için AI zorunlu değildir.
+4. Üstteki düzenleme alanında anamnezi kontrol edin, düzeltin. Yalnızca doğruladığınız bilgileri bırakın.
+5. **Onayla ve tamamla — otomatik kopyala** düğmesi o anki cihaz tarih/saatini ekler ve son önizlemenin aynısını panoya yazar; geri okuyarak doğrular.
+6. Miamed'de doğru hastanın anamnez alanının en altına imleci koyun ve `Ctrl+V` ile yapıştırın. İki baştaki satır sonu yeni kaydı öncekinden ayırır. Mevcut metni seçmeyin.
+
+Miamed'e uygulama tarafından otomatik giriş/yazma yapılmaz; yer ve hasta seçimi
+hekimdedir. Gerçek Miamed ekranında kabul testi henüz yapılmadı. Ayrıntılar:
+[V2-alpha1 doğrulama ve kabul raporu](docs/ALPHA1_MIAMED.md).
+
+**Yeniden kopyala** aynı onaylı metni aynı tarih/saatle kopyalar. Metin, dikte
+veya alanlar değişince onay kalkar; uygulamanın eski pano metni hâlâ panodaysa
+temizlenir. Dikte/alan değişikliğinde taslağı yeniden hazırlamak gerekir.
+Kopyalama başarısızsa tamamlandı mesajı gösterilmez, aynı onaylı metinle tekrar
+denenebilir. Kayıt/transkripsiyon bitmeden tamamlama yapılamaz. PubMed veya
+LLM çalışırken manuel hazırlama/onay/kopyalama kullanılabilir.
+
+**Yeni görüşme** hasta alanlarını, dikteyi, taslağı, AI sonuçlarını ve uygulamanın
+panodaki önceki kopyasını temizler; diskteki kayıtları silmez. Pano temizlenemezse
+geçiş durur. Başka uygulamanın sonradan koyduğu pano içeriğine dokunulmaz.
+Windows pano geçmişi ve sistemin cihazlar arası pano eşitlemesi uygulama
+tarafından yönetilmez. Windows'ta standart Unicode pano içeriği uygulama kapansa
+da sistemde kalır; yeni hasta öncesi **Yeni görüşme** kullanılmalıdır.
+
+Metin kaydı düzenlenmiş önizlemeyi korur. JSON kaydı `_note_draft` içinde taslak,
+ham dikte ve varsa son onaylı kopyayı yerel olarak saklar. Yüklenen kayıt yeniden
+incelenip onaylanır; otomatik kopyalanmaz. Son düzenlemeleri taşıyan taslağı
+yenilemeden önce onay istenir. Boş başlıklar ve `...` yer tutucuları çıktıya girmez.
 
 ## Kurulum
 
@@ -59,7 +92,7 @@ Bağımsız yerel model kontrolü:
   ardından en fazla 5 yayınla sentez yapılır. Top-k değerleri ayarlanabilir.
 - **5 değerlendirme önerisi:** V1 genel başlıkları/sabit sorgularıdır; bunlar
   hastaya özel AI değerlendirmesi değildir.
-- **Anamnez çıktısı:** pano, metin/JSON kaydı ve V1 JSON yüklemesi korunur.
+- **Anamnez • Miamed:** düzenleme, tarihli otomatik pano, metin/JSON kaydı ve V1 JSON yüklemesi.
 - **Ayarlar:** GGUF yolu, thread/bağlam/çıktı boyutları, Whisper modeli, düşük
   RAM, retmax/top-k, timeout/retry/cache ve gerçek sorguyu gösterme seçenekleri.
 
@@ -107,7 +140,7 @@ python -m benchmarks.run_benchmark --model "C:\modeller\model.gguf" --output ben
 
 Unit testler sentetik veri ve model test double'ları kullanır. Gerçek Tk testleri
 gizli pencereler açar; ekran yoksa atlanır. CI: Windows ve Linux/Xvfb, Python
-3.10/3.12. Yerel son kontrol: 27 test geçti.
+3.10/3.12. Yerel son kontrol: 52 test geçti; gerçek Windows panosu ve mevcut test metninin altına yapıştırma dahil.
 
 Benchmark gerçek modelle alan bazlı exact-match, soru şema geçerliliği, güvenli
 sorgu oranı, citation membership, süre, process peak RAM ve çıktı tokenı ölçer.
@@ -125,6 +158,6 @@ Geri dönüş etiketi, bağımsız yedek, mimari, faz sonuçları ve açık kabu
 Bu bir **V2-alpha** uygulamasıdır. Gerçek GGUF çıkarım kalitesi, mikrofon/Whisper
 regresyonu ve 8 GB RAM performansı henüz doğrulanmamıştır. Şema kontrolü eksik
 bilgi uydurulmasını tamamen önleyemez; her çıkarım hekimce gözden geçirilmelidir.
-V1'den korunan örnek form/muayene şablonu demo içeriğidir; gerçek hasta bulgusu
-veya yapılmış işlem kabul edilmemelidir. Sistem kesin tanı, reçete, doz veya
+Yeni görüşme boş başlar. Eski JSON dosyalarından yüklenen örnek/şablon metinler
+hekim tarafından kontrol edilmelidir. Sistem kesin tanı, reçete, doz veya
 hekim onaysız klinik karar üretmek için değildir.

@@ -22,7 +22,7 @@ class CompatibilityTests(unittest.TestCase):
     def test_v1_roundtrip(self):
         with tempfile.TemporaryDirectory() as folder:
             path=str(Path(folder)/'patient.json')
-            data={**INITIAL_DATA,'extension':{'preserved':True}}
+            data={**INITIAL_DATA,'tansiyon':'120/80','extension':{'preserved':True}}
             save_patient(path,data)
             self.assertEqual(load_patient(path),data)
             self.assertIn('FİZİK MUAYENE',format_note(data))
