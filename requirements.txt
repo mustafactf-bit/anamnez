@@ -1,3 +1,5 @@
 faster-whisper>=1.1.0,<2.0
 sounddevice>=0.5.0,<1.0
 cryptography>=46,<51
+huggingface-hub==2.2.0
+tqdm>=4.70,<5

@@ -5,13 +5,13 @@ import threading
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk
-from config import VERSION
+from config import VERSION, DISPLAY_VERSION
 from distribution.updater import check_updates, download_update, launch_installer
 
 class UpdatePanel:
     def __init__(self,app,frame):
         self.app=app; self.release=None; self.package=None; self.busy=False
-        self.state=tk.StringVar(value=f'Sürüm {VERSION}. Güncellemeler açılışta otomatik kontrol edilir.')
+        self.state=tk.StringVar(value=f'{DISPLAY_VERSION}. Güncellemeler açılışta otomatik kontrol edilir.')
         ttk.Label(frame,text='Uygulama güncellemeleri',font=('Segoe UI',12,'bold')).pack(anchor='w')
         ttk.Label(frame,textvariable=self.state,wraplength=820).pack(anchor='w',pady=8)
         self.button=ttk.Button(frame,text='Güncellemeleri kontrol et',command=self.action)

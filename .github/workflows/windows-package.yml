@@ -29,5 +29,5 @@ jobs:
         run: ./tools/package/test-install.ps1
       - uses: actions/upload-artifact@v4
         with:
-          name: Anamnez-alpha1.2-Windows
+          name: Anamnez-alpha1.2.1-Windows
           path: dist/Anamnez-Asistani-Kurulum.exe

@@ -30,11 +30,12 @@ from ui.clipboard import create_clipboard, ClipboardError
 from ui.clinical_assistant_tab import ClinicalAssistantTab
 from ui.settings_tab import build_settings_tab
 from ui.update_panel import UpdatePanel
+from ui.model_progress import ModelDownloadProgress
 
 class AnamnezApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Anamnez Asistanı V2-alpha1.2")
+        self.root.title("Anamnez Asistanı V2-alpha1.2.1")
         self.root.geometry("1050x760")
         self.root.minsize(820, 600)
         self.values = dict(INITIAL_DATA)
@@ -67,7 +68,7 @@ class AnamnezApp:
     def _build_ui(self):
         header = ttk.Frame(self.root, padding=(12, 10))
         header.pack(fill="x")
-        ttk.Label(header, text="Anamnez Asistanı V2-alpha1.2", font=("Segoe UI", 16, "bold")).pack(anchor="w")
+        ttk.Label(header, text="Anamnez Asistanı V2-alpha1.2.1", font=("Segoe UI", 16, "bold")).pack(anchor="w")
         ttk.Label(
             header,
             text="Dikte için Türkçe Whisper modeli yerel olarak çalışır. Dikte ve hasta bilgileri dış servislere gönderilmez; yalnızca genel literatür aramaları PubMed'e iletilir.",
@@ -110,7 +111,11 @@ class AnamnezApp:
         for variable in self.entry_variables.values():
             variable.trace_add('write', lambda *_: None if self._suppress_source_changes else self.note_panel.source_changed())
         self.status = tk.StringVar(value="Hazır.")
-        ttk.Label(self.root, textvariable=self.status, anchor="w", padding=(12, 4)).pack(fill="x")
+        footer=ttk.Frame(self.root)
+        footer.pack(fill='x')
+        self.model_progress=ModelDownloadProgress(footer)
+        ttk.Label(footer, textvariable=self.status, anchor="w", padding=(12, 4),wraplength=700).pack(side='left',fill="x",expand=True)
+        self.speech_engine.on_progress=lambda event:self.bridge.post(lambda:self.model_progress.update(event))
 
     def _build_form(self):
         canvas = tk.Canvas(self.form_tab, highlightthickness=0)
@@ -191,6 +196,7 @@ class AnamnezApp:
             messagebox.showerror("Whisper modeli", "Listeden geçerli bir Whisper modeli seçin.")
             return
         self._speech_context = (self.note_panel.sources(), self.note_panel.body())
+        self.model_progress.reset()
         self._processing_dictation = True
         self._recording = True
         self.note_panel.invalidate('Yeni dikte başladı. Kayıt ve transkripsiyondan sonra taslağı güncelleyip onaylayın.')

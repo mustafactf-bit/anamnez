@@ -1,4 +1,8 @@
-# Anamnez Asistanı V2-alpha1.2
+# Anamnez Asistanı V2-alpha1.2.1
+
+Whisper modeli ilk indirilirken sol altta **yeşil ilerleme çubuğu ve yüzde**
+gösterilir. Hazırlık/yükleme aşaması indirmeden ayrı belirtilir. Tam önbellekteki
+model için indirme yüzdesi gösterilmez. [Alpha1.2.1 sürüm notları](docs/ALPHA1_2_1.md).
 
 Windows için tek birleşik Tkinter uygulaması. V1'in manuel giriş, etiketli
 dikte, CPU/INT8 faster-whisper, JSON/metin kaydı ve beş genel PubMed başlığı
