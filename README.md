@@ -1,10 +1,35 @@
-# Anamnez Asistanı V2-alpha1.1
+# Anamnez Asistanı V2-alpha1.2
 
 Windows için tek birleşik Tkinter uygulaması. V1'in manuel giriş, etiketli
 dikte, CPU/INT8 faster-whisper, JSON/metin kaydı ve beş genel PubMed başlığı
 korunur. Ana öncelik tarihli anamnezi Miamed'e yapıştırmaya hazırlamaktır.
 **Klinik Asistan** ve **Ayarlar** aynı uygulamadadır. Ayrı V1 ürünü yoktur.
 Mevcut VBS başlatıcıları ve `anamnez_asistani.py` aynı V2 uygulamasını açar.
+
+## Windows kurulumu ve güncelleme
+
+Alpha1.2 Windows x64 kurulum paketi Python, mikrofon, faster-whisper ve CPU
+llama.cpp motorunu içerir; Python ayrıca kurulmaz. Whisper ağırlıkları ilk
+kullanımda indirilir; GGUF ağırlığı Ayarlar'dan seçilir. Model dosyaları kurulum
+paketinde değildir. [Sürüm indirmeleri](https://github.com/mustafactf-bit/anamnez/releases).
+
+Kurulum yönetici istemeden kullanıcı hesabına yapılır. Ayarlar
+`%LOCALAPPDATA%\AnamnezAsistani`, program
+`%LOCALAPPDATA%\Programs\AnamnezAsistani\versions` altındadır. Hasta kayıtları
+hekimin seçtiği dosyalarda kalır. Güncelleme ve kaldırma bu verileri silmez.
+
+EXE açılışta bu deponun GitHub sürümlerini kontrol eder. **Güncelleme** sekmesinde
+yeni sürümü indirip **Güncelle ve yeniden başlat** seçilir; aktif görüşme için
+ayrılma onayı istenir. Kurulum kendiliğinden veya kayıt devam ederken başlamaz.
+Ed25519 imzalı paket bilgisi ve SHA-256/boyut doğrulanır. Bozuk/yarım indirme
+çalıştırılmaz. Yeni sürüm eskisinin yanına kurulur; Başlat menüsündeki
+**Anamnez Asistani - Onceki surum** kısayolu geri dönüş sağlar. Bu, otomatik
+çökme algılayıp geri alma değildir.
+
+Windows yayıncı sertifikası henüz yoktur; işletim sistemi uyarı gösterebilir.
+Güncelleme imzası Windows Authenticode sertifikasından ayrıdır. Hastane cihazı,
+gerçek mikrofon/model ve Miamed kabulü ayrıca yapılmalıdır.
+[Paketleme, imzalama ve test ayrıntıları](docs/ALPHA1_2.md).
 
 ## Ana akış: anamnez → tarihli pano → Miamed
 
