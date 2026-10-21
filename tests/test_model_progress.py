@@ -67,7 +67,7 @@ class DownloadTests(unittest.TestCase):
                 (Path(directory)/file).write_text('fixture')
             module=types.SimpleNamespace(download_model=Mock(return_value=directory))
             events=[]
-            with patch.dict('sys.modules',{'faster_whisper.utils':module}),patch('speech.model_download.download_snapshot') as remote:
+            with patch.dict('sys.modules',{'faster_whisper.utils':module}),patch('speech.model_download.ready_snapshot',return_value=None),patch('speech.model_download.download_snapshot') as remote:
                 self.assertEqual(download_whisper_model('small',events.append),directory)
                 remote.assert_not_called()
             self.assertEqual(events[-1].phase,'cached')
@@ -115,10 +115,28 @@ class DownloadTests(unittest.TestCase):
                 with self.assertRaises(OSError):stream_file('https://example.test/x?download=true',target,4,lambda _:None,'0'*64)
             self.assertFalse(target.exists());self.assertFalse(target.with_suffix('.bin.partial').exists())
 
+    def test_server_ignoring_resume_restarts_without_duplicate_bytes(self):
+        class Response(io.BytesIO):
+            status=200
+            headers={}
+        with tempfile.TemporaryDirectory() as directory:
+            target=Path(directory)/'model.bin';target.with_suffix('.bin.partial').write_bytes(b'12')
+            with patch('speech.model_download.urllib.request.urlopen',return_value=Response(b'1234')):
+                stream_file('https://example.test/x?download=true',target,4,lambda _:None)
+            self.assertEqual(target.read_bytes(),b'1234')
+
 class ProgressUITests(unittest.TestCase):
     setUp=ui_tests.UITests.setUp
     tearDown=ui_tests.UITests.tearDown
     pump=ui_tests.UITests.pump
+
+    def test_model_error_is_distinct_and_never_leaks_raw_error_text(self):
+        error=SpeechModelError('load',RuntimeError('private raw exception'))
+        with patch('ui.main_window.messagebox.showerror') as dialog:
+            self.app._microphone_error(error)
+            self.assertEqual(dialog.call_args.args[0],'Whisper modeli hazırlanamadı')
+            self.assertIn('MODEL-LOAD-RUNTIMEERROR',dialog.call_args.args[1])
+            self.assertNotIn('private raw',dialog.call_args.args[1])
 
     def test_worker_updates_real_green_bar_on_ui_thread(self):
         progress=self.app.model_progress

@@ -1,4 +1,9 @@
-# Anamnez Asistanı V2-alpha1.2.1
+# Anamnez Asistanı V2-alpha1.2.2
+
+Alpha1.2.2 ilk model indirmesini 4 MiB aralık istekleri, 128 KiB ilerleme
+okumaları, devam desteği ve model ağırlığı SHA-256 doğrulamasıyla güçlendirir.
+Başarısız indirme/yükleme artık yeşil tamamlanma çubuğu bırakmaz ve mikrofon
+hatasından ayrı bir model hata kodu gösterir. [Sürüm notları](docs/ALPHA1_2_2.md).
 
 Whisper modeli ilk indirilirken sol altta **yeşil ilerleme çubuğu ve yüzde**
 gösterilir. Hazırlık/yükleme aşaması indirmeden ayrı belirtilir. Tam önbellekteki

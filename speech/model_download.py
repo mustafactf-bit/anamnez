@@ -85,6 +85,7 @@ def stream_file(url,target,size,progress,sha256=None):
                     output.write(chunk);progress(total)
             if total!=expected:raise OSError('Model indirmesi eksik kaldı.')
     if total!=size:raise OSError('Model indirmesi eksik kaldı.')
+    if size==0:partial.write_bytes(b'')
     if sha256:
         digest=hashlib.sha256()
         with partial.open('rb') as stream:
