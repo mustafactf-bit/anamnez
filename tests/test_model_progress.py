@@ -1,10 +1,13 @@
 """Byte progress, cache/resume/failure and actual Tk lower-left rendering."""
 import tempfile
+import io
+import hashlib
 import types
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
-from speech.model_download import ByteProgress, ModelProgress, download_snapshot, download_whisper_model
+from speech.model_download import ByteProgress, ModelProgress, download_snapshot, download_whisper_model, model_cache, stream_file
+from speech.errors import SpeechModelError
 from speech.whisper_engine import WhisperEngine
 import tests.test_ui as ui_tests
 
@@ -29,23 +32,21 @@ class DownloadTests(unittest.TestCase):
 
     def fake_download(self,fail=False,cached=False):
         with tempfile.TemporaryDirectory() as directory:
-            cache=Path(directory)/'file';cache.write_bytes(b'1234')
+            folder=model_cache('small',directory)/('a'*40);folder.mkdir(parents=True)
+            if cached:(folder/'config.json').write_bytes(b'1234')
             file=types.SimpleNamespace(rfilename='config.json',size=4)
-            info=types.SimpleNamespace(sha='immutable-commit',siblings=[file])
-            hub=types.SimpleNamespace(HfApi=Mock(return_value=Mock(model_info=Mock(return_value=info))),
-                try_to_load_from_cache=Mock(return_value=str(cache) if cached else None))
-            tracker=[];events=[]
-            def factory(value):tracker.append(value);return object
-            def snapshot(*args,**kwargs):
-                self.assertEqual(kwargs['revision'],'immutable-commit')
-                if not cached:tracker[0].update(2,True)
+            info=types.SimpleNamespace(sha='a'*40,siblings=[file])
+            hub=types.SimpleNamespace(HfApi=Mock(return_value=Mock(model_info=Mock(return_value=info))))
+            events=[]
+            def stream(url,target,size,progress,sha):
+                self.assertIn('/resolve/'+('a'*40)+'/',url)
+                progress(0);progress(2)
                 if fail:raise OSError('offline')
-                return directory
-            hub.snapshot_download=Mock(side_effect=snapshot)
-            with patch.dict('sys.modules',{'huggingface_hub':hub}),patch('speech.model_download.progress_class',side_effect=factory):
+                target.write_bytes(b'1234')
+            with patch.dict('sys.modules',{'huggingface_hub':hub}),patch('speech.model_download.stream_file',side_effect=stream),patch('speech.model_download.time.monotonic',side_effect=[100,101]):
                 if fail:
-                    with self.assertRaises(OSError):download_snapshot('repo/model','small',events.append,['config.json'])
-                else:download_snapshot('repo/model','small',events.append,['config.json'])
+                    with self.assertRaises(OSError):download_snapshot('repo/model','small',events.append,['config.json'],directory)
+                else:download_snapshot('repo/model','small',events.append,['config.json'],directory)
             return events
 
     def test_metadata_pinned_and_success_only_100(self):
@@ -83,8 +84,36 @@ class DownloadTests(unittest.TestCase):
     def test_engine_failure_visible(self):
         engine=WhisperEngine();events=[];engine.on_progress=events.append
         with patch.dict('sys.modules',{'faster_whisper':types.SimpleNamespace(WhisperModel=Mock())}),patch('speech.model_download.download_whisper_model',side_effect=OSError):
-            with self.assertRaises(OSError):engine.load('large-v3')
+            with self.assertRaises(SpeechModelError) as caught:engine.load('large-v3')
+        self.assertEqual(caught.exception.stage,'download')
         self.assertEqual(events[-1].phase,'error');self.assertIsNone(engine.model)
+
+    def test_http_range_resume_hash_and_bad_range(self):
+        class Response(io.BytesIO):
+            status=206
+            headers={'Content-Range':'bytes 2-3/4'}
+        with tempfile.TemporaryDirectory() as directory:
+            target=Path(directory)/'model.bin';partial=target.with_suffix('.bin.partial')
+            partial.write_bytes(b'12');events=[]
+            with patch('speech.model_download.urllib.request.urlopen',return_value=Response(b'34')) as request:
+                stream_file('https://huggingface.co/r/resolve/a/model.bin?download=true',target,4,events.append,hashlib.sha256(b'1234').hexdigest())
+                self.assertEqual(request.call_args.args[0].get_header('Range'),'bytes=2-3')
+            self.assertEqual(target.read_bytes(),b'1234');self.assertFalse(partial.exists())
+            target.unlink();partial.write_bytes(b'12')
+            response=Response(b'34');response.headers={'Content-Range':'bytes 0-1/4'}
+            with patch('speech.model_download.urllib.request.urlopen',return_value=response):
+                with self.assertRaises(OSError):stream_file('https://example.test/x?download=true',target,4,events.append)
+            self.assertFalse(target.exists())
+
+    def test_http_hash_mismatch_never_completes(self):
+        class Response(io.BytesIO):
+            status=200
+            headers={}
+        with tempfile.TemporaryDirectory() as directory:
+            target=Path(directory)/'model.bin'
+            with patch('speech.model_download.urllib.request.urlopen',return_value=Response(b'FAIL')):
+                with self.assertRaises(OSError):stream_file('https://example.test/x?download=true',target,4,lambda _:None,'0'*64)
+            self.assertFalse(target.exists());self.assertFalse(target.with_suffix('.bin.partial').exists())
 
 class ProgressUITests(unittest.TestCase):
     setUp=ui_tests.UITests.setUp
@@ -112,3 +141,5 @@ class ProgressUITests(unittest.TestCase):
         self.assertNotIn('%100',progress.text.get())
         progress.update(ModelProgress('error','large-v3'))
         self.assertIn('tamamlanamadı',progress.text.get())
+        self.assertEqual(progress.bar.coords(progress.fill)[2],0)
+        self.assertEqual(progress.bar.cget('background'),'#fbe9e7')

@@ -27,7 +27,18 @@ jobs:
       - name: Synthetic install, upgrade, rollback and data preservation
         shell: pwsh
         run: ./tools/package/test-install.ps1
+      - name: Actual first small-model download, load and silent transcription from EXE
+        timeout-minutes: 15
+        shell: pwsh
+        run: |
+          $env:HF_HUB_CACHE = Join-Path $env:RUNNER_TEMP 'fresh-whisper-cache'
+          $report = Join-Path $env:RUNNER_TEMP 'full-model-smoke.json'
+          $process = Start-Process dist/AnamnezAsistani/AnamnezAsistani.exe -ArgumentList @('--model-smoke', $report) -WindowStyle Hidden -PassThru -Wait
+          if (Test-Path $report) { Get-Content $report }
+          if ($process.ExitCode -ne 0 -or !(Test-Path $report)) { throw 'Full model smoke failed' }
+          $data = Get-Content $report -Raw | ConvertFrom-Json
+          if (!$data.model_load -or !$data.silence_transcription) { throw 'Actual model inference failed' }
       - uses: actions/upload-artifact@v4
         with:
-          name: Anamnez-alpha1.2.1-Windows
+          name: Anamnez-alpha1.2.2-Windows
           path: dist/Anamnez-Asistani-Kurulum.exe

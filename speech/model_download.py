@@ -1,6 +1,11 @@
 """Whisper cache-aware download progress; no patient data or global hooks."""
 import fnmatch
-import io
+import hashlib
+import json
+import os
+import re
+import urllib.parse
+import urllib.request
 import threading
 import time
 from dataclasses import dataclass
@@ -37,49 +42,92 @@ class ByteProgress:
                 self.callback(ModelProgress('downloading',self.model,percent,downloaded,self.total))
                 self.last=percent;self.when=now
 
-def progress_class(tracker):
-    # Use the public snapshot_download tqdm_class hook, never monkeypatch global bars.
-    from tqdm.auto import tqdm
-    class DownloadTqdm(tqdm):
-        def __init__(self,*args,**kwargs):
-            self.report=str(kwargs.get('desc','')).startswith('Reconstructing') and kwargs.get('unit')=='B'
-            kwargs.update(disable=False,file=io.StringIO(),mininterval=.1)
-            super().__init__(*args,**kwargs)
-        def update(self,n=1):
-            result=super().update(n)
-            if self.report:tracker.update(self.n)
-            return result
-        def refresh(self,*args,**kwargs):
-            result=super().refresh(*args,**kwargs)
-            if self.report:tracker.update(self.n)
-            return result
-    return DownloadTqdm
+def model_cache(model,cache_dir=None):
+    root=Path(cache_dir) if cache_dir else Path(os.environ.get('LOCALAPPDATA',str(Path.home())))/'AnamnezAsistani'/'models'
+    return root/'whisper'/model
+
+def ready_snapshot(root):
+    try:
+        data=json.loads((root/'ready.json').read_text(encoding='utf-8'))
+        if not re.fullmatch('[a-f0-9]{40}',data['revision']):return None
+        folder=root/data['revision']
+        for file in data['files']:
+            name=file['name']
+            if Path(name).name!=name or not (folder/name).is_file() or (folder/name).stat().st_size!=file['size']:return None
+        if not data['files']:return None
+        return str(folder)
+    except (OSError,ValueError,KeyError,TypeError):return None
+
+def stream_file(url,target,size,progress,sha256=None):
+    """128 KiB reads, bounded socket wait, strict resume and atomic completion."""
+    target=Path(target);partial=target.with_suffix(target.suffix+'.partial')
+    offset=partial.stat().st_size if partial.exists() else 0
+    if offset>size:offset=0
+    total=offset;progress(total)
+    while total<size:
+        start=total;end=min(start+4*1024*1024,size)-1
+        headers={'User-Agent':'AnamnezAsistani-ModelDownload','Accept-Encoding':'identity',
+                 'Range':f'bytes={start}-{end}'}
+        # Distinct range URL also avoids intermediary caches mixing range responses.
+        request=urllib.request.Request(url+f'&part={start}',headers=headers)
+        with urllib.request.urlopen(request,timeout=20) as response:
+            if response.status==206:
+                if response.headers.get('Content-Range','')!=f'bytes {start}-{end}/{size}':
+                    raise OSError('Model indirme aralığı uyuşmuyor.')
+                expected=end+1
+            elif response.status==200:
+                total=0;expected=size
+            else:raise OSError('Beklenmeyen model indirme yanıtı.')
+            with partial.open('ab' if total else 'wb') as output:
+                while chunk:=response.read(128*1024):
+                    total+=len(chunk)
+                    if total>expected:raise OSError('Model boyutu uyuşmuyor.')
+                    output.write(chunk);progress(total)
+            if total!=expected:raise OSError('Model indirmesi eksik kaldı.')
+    if total!=size:raise OSError('Model indirmesi eksik kaldı.')
+    if sha256:
+        digest=hashlib.sha256()
+        with partial.open('rb') as stream:
+            while chunk:=stream.read(1024*1024):digest.update(chunk)
+        if digest.hexdigest()!=sha256:
+            partial.unlink(missing_ok=True)
+            raise OSError('Model dosyası doğrulanamadı.')
+    partial.replace(target)
 
 def download_snapshot(repo_id,model,callback,patterns=PATTERNS,cache_dir=None):
     """Pin metadata and payload to the same commit; include already cached bytes."""
-    from huggingface_hub import HfApi, snapshot_download, try_to_load_from_cache
+    from huggingface_hub import HfApi
     callback(ModelProgress('checking',model))
     info=HfApi().model_info(repo_id,files_metadata=True)
     files=[f for f in info.siblings if any(fnmatch.fnmatchcase(f.rfilename,p) for p in patterns)]
     if not files or any(type(f.size) is not int or f.size < 0 for f in files):
         raise ValueError('Model dosya boyutları belirlenemedi.')
-    total=sum(f.size for f in files)
-    cached=0
+    if not re.fullmatch('[a-f0-9]{40}',info.sha):raise ValueError('Geçersiz model revizyonu.')
+    root=model_cache(model,cache_dir);folder=root/info.sha;folder.mkdir(parents=True,exist_ok=True)
+    total=sum(f.size for f in files);done=0;downloaded=False
+    tracker=ByteProgress(model,total,0,callback)
     for file in files:
-        path=try_to_load_from_cache(repo_id,file.rfilename,revision=info.sha,cache_dir=cache_dir)
-        if isinstance(path,str) and Path(path).is_file() and Path(path).stat().st_size==file.size:
-            cached+=file.size
-    tracker=ByteProgress(model,total,cached,callback)
-    if cached < total:tracker.update(0,force=True)
-    path=snapshot_download(repo_id,revision=info.sha,allow_patterns=patterns,
-        cache_dir=cache_dir,tqdm_class=progress_class(tracker))
-    if cached < total:callback(ModelProgress('downloaded',model,100,total,total))
+        if Path(file.rfilename).name!=file.rfilename:raise ValueError('Geçersiz model dosya adı.')
+        target=folder/file.rfilename
+        if target.is_file() and target.stat().st_size==file.size:
+            done+=file.size;continue
+        downloaded=True
+        url=f'https://huggingface.co/{repo_id}/resolve/{info.sha}/{urllib.parse.quote(file.rfilename)}?download=true'
+        stream_file(url,target,file.size,lambda count:tracker.update(done+count),
+            getattr(getattr(file,'lfs',None),'sha256',None))
+        done+=file.size
+    manifest={'revision':info.sha,'files':[{'name':f.rfilename,'size':f.size} for f in files]}
+    pending=root/'ready.partial';pending.write_text(json.dumps(manifest),encoding='utf-8');pending.replace(root/'ready.json')
+    if downloaded:callback(ModelProgress('downloaded',model,100,total,total))
     else:callback(ModelProgress('cached',model))
-    return path
+    return str(folder)
 
 def download_whisper_model(model,callback):
     """Complete existing cache works offline and never flashes a fake download."""
     from faster_whisper.utils import download_model
+    own_cache=ready_snapshot(model_cache(model))
+    if own_cache:
+        callback(ModelProgress('cached',model));return own_cache
     try:
         path=Path(download_model(model,local_files_only=True))
         if (all((path/name).is_file() for name in ('config.json','model.bin','tokenizer.json'))

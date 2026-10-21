@@ -36,6 +36,8 @@ class ModelDownloadProgress:
         elif event.phase=='ready':
             self.text.set(f'Whisper {event.model} hazır')
         elif event.phase=='error':
+            self.bar.coords(self.fill,0,0,0,12)
+            self.bar.configure(background='#fbe9e7')
             self.text.set(f'Whisper {event.model} — indirme/yükleme tamamlanamadı')
         else:
             if not self.bar.winfo_manager():self.bar.pack(anchor='w',pady=(3,0))
@@ -43,5 +45,6 @@ class ModelDownloadProgress:
             self.text.set(f'Whisper {event.model} — indirme bilgisi alınıyor')
 
     def reset(self):
+        self.bar.configure(background='#e8eee9')
         self.bar.coords(self.fill,0,0,0,12)
         self.frame.pack_forget()

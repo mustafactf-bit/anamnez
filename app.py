@@ -7,6 +7,23 @@ from pathlib import Path
 from ui.main_window import AnamnezApp
 
 def main():
+    if '--model-smoke' in sys.argv:
+        import traceback
+        from speech.whisper_engine import WhisperEngine
+        target=Path(sys.argv[sys.argv.index('--model-smoke')+1])
+        engine=WhisperEngine()
+        engine.on_progress=lambda event:None
+        try:
+            engine.load('small')
+            import numpy as np
+            engine.transcribe(np.zeros(16000,dtype=np.float32))
+            result={'model_load':True,'silence_transcription':True}
+        except Exception:
+            result={'model_load':False,'error':traceback.format_exc()}
+        finally:engine.unload()
+        target.write_text(json.dumps(result,ensure_ascii=False),encoding='utf-8')
+        if not result['model_load']:raise SystemExit(1)
+        return
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s %(message)s')
     root = tk.Tk()
     if '--package-smoke' in sys.argv:

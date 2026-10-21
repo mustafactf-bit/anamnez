@@ -23,6 +23,7 @@ from settings import load_settings, Settings
 from ai.llm_engine import GGUFEngine
 from literature.pubmed_client import PubMedClient
 from speech.whisper_engine import WhisperEngine
+from speech.errors import SpeechModelError
 from speech.audio_recorder import record_audio
 from ui.worker import WorkerBridge
 from ui.note_panel import NotePanel
@@ -35,7 +36,7 @@ from ui.model_progress import ModelDownloadProgress
 class AnamnezApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Anamnez Asistanı V2-alpha1.2.1")
+        self.root.title("Anamnez Asistanı V2-alpha1.2.2")
         self.root.geometry("1050x760")
         self.root.minsize(820, 600)
         self.values = dict(INITIAL_DATA)
@@ -68,7 +69,7 @@ class AnamnezApp:
     def _build_ui(self):
         header = ttk.Frame(self.root, padding=(12, 10))
         header.pack(fill="x")
-        ttk.Label(header, text="Anamnez Asistanı V2-alpha1.2.1", font=("Segoe UI", 16, "bold")).pack(anchor="w")
+        ttk.Label(header, text="Anamnez Asistanı V2-alpha1.2.2", font=("Segoe UI", 16, "bold")).pack(anchor="w")
         ttk.Label(
             header,
             text="Dikte için Türkçe Whisper modeli yerel olarak çalışır. Dikte ve hasta bilgileri dış servislere gönderilmez; yalnızca genel literatür aramaları PubMed'e iletilir.",
@@ -281,6 +282,10 @@ class AnamnezApp:
         self.note_panel.state.set('Dikte tamamlanamadı; mevcut metin korundu.')
         self.note_panel.update_actions()
         self.status.set("Mikrofon diktesi başarısız oldu.")
+        if isinstance(error,SpeechModelError):
+            self.status.set(f'Whisper modeli hazırlanamadı. Hata kodu: {error.code}')
+            messagebox.showerror('Whisper modeli hazırlanamadı',f'{error.message}\n\nHata kodu: {error.code}')
+            return
         if missing_dependency:
             messagebox.showerror(
                 "Whisper bileşenleri kurulu değil",

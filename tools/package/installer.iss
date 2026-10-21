@@ -1,7 +1,7 @@
-#define AppVersion "2.0.1-alpha.1.2"
+#define AppVersion "2.0.2-alpha.1.2"
 [Setup]
 AppId={{4A4C3DF0-16C5-4E05-865A-A734367F4CF1}
-AppName=Anamnez Asistani V2-alpha1.2.1
+AppName=Anamnez Asistani V2-alpha1.2.2
 AppVersion={#AppVersion}
 AppPublisher=Anamnez Asistani
 DefaultDirName={localappdata}\Programs\AnamnezAsistani

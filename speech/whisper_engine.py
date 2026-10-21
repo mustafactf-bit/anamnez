@@ -16,14 +16,19 @@ class WhisperEngine:
             self.model=WhisperModel(model_size,device='cpu',compute_type='int8')
         else:
             from speech.model_download import download_whisper_model, ModelProgress
+            from speech.errors import SpeechModelError
             try:
                 path=download_whisper_model(model_size,self.on_progress)
+            except Exception as error:
+                self.on_progress(ModelProgress('error',model_size))
+                raise SpeechModelError('download',error) from error
+            try:
                 self.on_progress(ModelProgress('loading',model_size))
                 self.model=WhisperModel(path,device='cpu',compute_type='int8',local_files_only=True)
                 self.on_progress(ModelProgress('ready',model_size))
-            except Exception:
+            except Exception as error:
                 self.on_progress(ModelProgress('error',model_size))
-                raise
+                raise SpeechModelError('load',error) from error
         self.model_size=model_size
 
     def transcribe(self,audio) -> str:
