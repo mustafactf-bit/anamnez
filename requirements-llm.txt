@@ -1,0 +1,2 @@
+# Optional CPU backend; keep speech/manual workflows usable without it.
+llama-cpp-python>=0.3.16,<0.4
