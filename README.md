@@ -19,6 +19,10 @@ Miamed'e uygulama tarafından otomatik giriş/yazma yapılmaz; yer ve hasta seç
 hekimdedir. Gerçek Miamed ekranında kabul testi henüz yapılmadı. Ayrıntılar:
 [V2-alpha1 doğrulama ve kabul raporu](docs/ALPHA1_MIAMED.md).
 
+Hastanedeki Windows Miamed ekranının salt okunur teknik ön incelemesi için
+[Miamed Ekran Kontrolü](tools/screencheck/README.md) pilot aracı eklendi.
+Hasta içeriğini raporlamaz ve hiçbir alana yazmaz; otomatik aktarım adapter'ı değildir.
+
 **Yeniden kopyala** aynı onaylı metni aynı tarih/saatle kopyalar. Metin, dikte
 veya alanlar değişince onay kalkar; uygulamanın eski pano metni hâlâ panodaysa
 temizlenir. Dikte/alan değişikliğinde taslağı yeniden hazırlamak gerekir.

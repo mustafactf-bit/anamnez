@@ -19,3 +19,20 @@ jobs:
         if: runner.os == 'Linux'
         run: xvfb-run -a python -m unittest discover -s tests -v
       - run: python -m compileall -q ai literature safety speech storage ui app.py settings.py
+  screencheck:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build read-only Windows diagnostic
+        shell: pwsh
+        run: |
+          $probeFolder = Join-Path $env:RUNNER_TEMP 'miamed-screencheck'
+          New-Item -ItemType Directory -Force -Path $probeFolder | Out-Null
+          ./tools/screencheck/build.ps1 -OutputPath (Join-Path $probeFolder 'Miamed-Ekran-Kontrol.exe')
+      - name: Synthetic UI Automation and report privacy tests
+        shell: pwsh
+        run: ./tools/screencheck/test.ps1 -HelperPath (Join-Path $env:RUNNER_TEMP 'miamed-screencheck/Miamed-Ekran-Kontrol.exe')
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Miamed-Ekran-Kontrol
+          path: ${{ runner.temp }}/miamed-screencheck/Miamed-Ekran-Kontrol.exe
