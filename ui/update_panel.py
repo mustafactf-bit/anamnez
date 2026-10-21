@@ -43,7 +43,9 @@ class UpdatePanel:
             if self.app.bridge.busy or self.app._recording_stop is not None:return
             try: launch_installer(self.package,self.release)
             except Exception:
-                self.state.set('Kurulum başlatılamadı; mevcut sürüm açık tutuldu.');return
+                self.package=None
+                self.button.configure(text='Güncellemeyi yeniden indir')
+                self.state.set('Kurulum başlatılamadı; mevcut sürüm açık tutuldu. Paketi yeniden indirebilirsiniz.');return
             self.app._close();return
         if self.release is not None:
             self.state.set('Güncelleme indiriliyor ve doğrulanıyor. Görüşmeye devam edebilirsiniz.')

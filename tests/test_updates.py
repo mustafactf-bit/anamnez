@@ -82,3 +82,35 @@ class UpdateTests(unittest.TestCase):
             'https://github.com.evil/mustafactf-bit/anamnez/releases/download/a/b',
             'https://github.com/other/repo/releases/download/a/b']:
             self.assertFalse(u.allowed_url(url))
+
+    def test_discovery_checks_signature_and_matching_tag(self):
+        raw,sig=self.signed()
+        prefix=self.data['url'].rsplit('/',1)[0]
+        listing=[{'tag_name':'v'+self.data['version'],'assets':[
+            {'name':'update.json','browser_download_url':prefix+'/update.json'},
+            {'name':'update.sig','browser_download_url':prefix+'/update.sig'}]}]
+        replies={u.API:json.dumps(listing).encode(),prefix+'/update.json':raw,prefix+'/update.sig':sig}
+        verify=u.verify_manifest
+        with patch.object(u,'verify_manifest',side_effect=lambda a,b:verify(a,b,self.public)):
+            self.assertEqual(u.check_updates('2.0.0-alpha.1.2',lambda url,_:replies[url]).version,self.data['version'])
+            replies[prefix+'/update.sig']=b'x'*64
+            with self.assertRaises(u.UpdateError):u.check_updates('2.0.0-alpha.1.2',lambda url,_:replies[url])
+
+class UpdateUITests(unittest.TestCase):
+    def test_busy_cancel_and_tamper_leave_app_open(self):
+        from unittest.mock import Mock
+        import tkinter as tk
+        from ui.update_panel import UpdatePanel
+        try:root=tk.Tk()
+        except tk.TclError as error:self.skipTest(str(error))
+        root.withdraw()
+        try:
+            app=Mock();app.root=root;app._recording_stop=None;app.bridge.busy=True
+            panel=UpdatePanel(app,root);panel.package=Path('fake.exe');panel.release=Mock()
+            with patch('ui.update_panel.launch_installer') as launch:
+                panel.action();app._leave_visit.assert_not_called();launch.assert_not_called()
+                app.bridge.busy=False;app._leave_visit.return_value=False
+                panel.action();launch.assert_not_called();app._close.assert_not_called()
+                app._leave_visit.return_value=True;launch.side_effect=u.UpdateError('tampered')
+                panel.action();app._close.assert_not_called();self.assertIsNone(panel.package)
+        finally:root.destroy()

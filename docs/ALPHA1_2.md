@@ -64,7 +64,7 @@ doğruluğu/hızı için ayrıca donanım kabul testi gerekir.
 
 ## Doğrulama
 
-80 birim/arayüz testi: önceki 71 regresyon ve 9 güncelleme testi. İmza değiştirme,
+82 birim/arayüz testi: önceki 71 regresyon ve 11 güncelleme testi. İmza değiştirme,
 güvensiz URL, sürüm sırası, ağ hatası, bozuk/yarım/aşırı büyük indirme, çalıştırma
 öncesi dosya değişimi ve zorla/sessiz kurulum yapılmaması kapsanır.
 
