@@ -2,31 +2,27 @@ import json
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+from config import RECOMMENDATIONS
+from settings import Settings
+from literature.pubmed_client import PubMedClient
+from safety.privacy import PrivacyError
 
 def fetch_pubmed_references(queries):
+    """Retained general references accept only the five reviewed fixed queries."""
+    if list(queries) != RECOMMENDATIONS:
+        raise PrivacyError('Genel kaynak aramasında yalnızca sabit klinik sorgular kullanılabilir.')
+    client = PubMedClient(Settings())
     id_sets = []
     for _, _, query in queries:
-        params = urllib.parse.urlencode(
-            {"db": "pubmed", "term": query, "retmax": 3, "retmode": "json"}
-        )
-        request = urllib.request.Request(
-            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?" + params,
-            headers={"User-Agent": "AnamnezAsistani/1.0 (literature lookup)"},
-        )
-        with urllib.request.urlopen(request, timeout=15) as response:
-            result = json.loads(response.read().decode("utf-8"))
-        id_sets.append(result["esearchresult"]["idlist"])
+        result = json.loads(client._request('esearch',
+            {'term':query, 'retmax':3, 'retmode':'json'}))
+        id_sets.append(client._ids(result['esearchresult']['idlist']))
 
     ids = list(dict.fromkeys(identifier for group in id_sets for identifier in group))
     summaries = {}
     if ids:
-        params = urllib.parse.urlencode({"db": "pubmed", "id": ",".join(ids), "retmode": "xml"})
-        request = urllib.request.Request(
-            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?" + params,
-            headers={"User-Agent": "AnamnezAsistani/1.0 (literature lookup)"},
-        )
-        with urllib.request.urlopen(request, timeout=20) as response:
-            root = ET.fromstring(response.read())
+        root = ET.fromstring(client._request('esummary',
+            {'id':','.join(ids), 'retmode':'xml'}))
         for item in root.findall(".//DocSum"):
             uid = item.findtext("Id", "")
             values = {node.get("Name", ""): node for node in item.findall("Item")}

@@ -16,11 +16,19 @@ from config import FIELDS, INITIAL_DATA, RECOMMENDATIONS
 from clinical_notes import format_note, parse_dictation
 from literature.legacy import fetch_pubmed_references
 from storage.patient_storage import save_patient, load_patient
+from settings import load_settings, Settings
+from ai.llm_engine import GGUFEngine
+from literature.pubmed_client import PubMedClient
+from speech.whisper_engine import WhisperEngine
+from speech.audio_recorder import record_audio
+from ui.worker import WorkerBridge
+from ui.clinical_assistant_tab import ClinicalAssistantTab
+from ui.settings_tab import build_settings_tab
 
 class AnamnezApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Anamnez Asistanı")
+        self.root.title("Anamnez Asistanı V2 Alpha")
         self.root.geometry("1050x760")
         self.root.minsize(820, 600)
         self.values = dict(INITIAL_DATA)
@@ -28,12 +36,25 @@ class AnamnezApp:
         self.reference_ids = []
         self._recording = False
         self._recording_stop = None
+        self.bridge = WorkerBridge(root)
+        self._settings_error = False
+        try:
+            self.settings = load_settings()
+        except (OSError, ValueError, TypeError):
+            self.settings = Settings()
+            self._settings_error = True
+        self.engine = GGUFEngine(self.settings)
+        self.speech_engine = WhisperEngine()
+        self.pubmed = PubMedClient(self.settings)
+        self.root.protocol('WM_DELETE_WINDOW', self._close)
         self._build_ui()
+        if self._settings_error:
+            self.status.set('Ayar dosyası okunamadı; varsayılanlar kullanılıyor. Ayarları kontrol edin.')
 
     def _build_ui(self):
         header = ttk.Frame(self.root, padding=(12, 10))
         header.pack(fill="x")
-        ttk.Label(header, text="Anamnez Asistanı", font=("Segoe UI", 16, "bold")).pack(anchor="w")
+        ttk.Label(header, text="Anamnez Asistanı V2 Alpha", font=("Segoe UI", 16, "bold")).pack(anchor="w")
         ttk.Label(
             header,
             text="Dikte için Türkçe Whisper modeli yerel olarak çalışır. Dikte ve hasta bilgileri dış servislere gönderilmez; yalnızca genel literatür aramaları PubMed'e iletilir.",
@@ -54,6 +75,13 @@ class AnamnezApp:
         self._build_dictation()
         self._build_recommendations()
         self._build_output()
+        clinical_frame = ttk.Frame(self.tabs, padding=8)
+        self.tabs.add(clinical_frame, text='Klinik Asistan')
+        self.clinical = ClinicalAssistantTab(self, clinical_frame)
+        settings_frame = ttk.Frame(self.tabs, padding=8)
+        self.tabs.add(settings_frame, text='Ayarlar')
+        build_settings_tab(self, settings_frame)
+        self.dictation_text.bind('<<Modified>>', self._transcript_changed)
         self.status = tk.StringVar(value="Hazır.")
         ttk.Label(self.root, textvariable=self.status, anchor="w", padding=(12, 4)).pack(fill="x")
 
@@ -85,7 +113,7 @@ class AnamnezApp:
         ).pack(anchor="w", pady=(0, 8))
         controls = ttk.Frame(self.dictation_tab)
         controls.pack(fill="x", pady=(0, 8))
-        self.whisper_model = tk.StringVar(value="small")
+        self.whisper_model = tk.StringVar(value=self.settings.whisper_model)
         ttk.Label(controls, text="Whisper modeli:").pack(side="left")
         self.whisper_model_choice = ttk.Combobox(
             controls,
@@ -126,6 +154,9 @@ class AnamnezApp:
             if self._recording_stop:
                 self._recording_stop.set()
             return
+        if self.bridge.busy:
+            self.status.set('Devam eden işlemin bitmesini bekleyin.')
+            return
         model_size = self.whisper_model.get()
         if model_size not in ("small", "medium", "large-v3", "turbo"):
             messagebox.showerror("Whisper modeli", "Listeden geçerli bir Whisper modeli seçin.")
@@ -136,67 +167,29 @@ class AnamnezApp:
         self.status.set(
             f"Whisper {model_size} hazırlanıyor. İlk kullanımda model indirilir; indirme tamamlanınca kayıt başlayacak."
         )
-        threading.Thread(
-            target=self._record_and_transcribe,
-            args=(model_size, self._recording_stop),
-            daemon=True,
-        ).start()
+        stop_event = self._recording_stop
+        self.bridge.start(
+            lambda: self._record_and_transcribe(model_size, stop_event),
+            lambda result: self._microphone_transcription_finished(*result),
+            self._microphone_error,
+        )
 
     def _record_and_transcribe(self, model_size, stop_event):
         try:
-            import numpy as np
-            import sounddevice as sd
-            from faster_whisper import WhisperModel
-        except ImportError as error:
-            self.root.after(0, lambda error=error: self._microphone_error(error, missing_dependency=True))
-            return
-
-        try:
-            model = WhisperModel(model_size, device="cpu", compute_type="int8")
-            chunks = []
-            input_overflow = [False]
-
-            def receive_audio(indata, _frames, _time_info, status):
-                if status:
-                    input_overflow[0] = True
-                chunks.append(indata.copy())
-
-            with sd.InputStream(
-                samplerate=16000,
-                channels=1,
-                dtype="float32",
-                callback=receive_audio,
-            ):
-                self.root.after(0, self._microphone_recording_started)
-                started_at = time.monotonic()
-                reached_limit = False
-                while not stop_event.wait(0.1):
-                    if time.monotonic() - started_at >= 900:
-                        reached_limit = True
-                        stop_event.set()
-                        break
-
-            if not chunks:
-                raise ValueError("Mikrofondan ses alınamadı. Mikrofon bağlantısını ve Windows izinlerini kontrol edin.")
-            audio = np.concatenate(chunks, axis=0).reshape(-1)
-            segments, _info = model.transcribe(
-                audio,
-                language="tr",
-                task="transcribe",
-                beam_size=5,
-                vad_filter=True,
-            )
-            transcript = " ".join(segment.text.strip() for segment in segments).strip()
-            self.root.after(
-                0,
-                lambda: self._microphone_transcription_finished(
-                    transcript,
-                    input_overflow[0],
-                    reached_limit,
-                ),
-            )
-        except Exception as error:
-            self.root.after(0, lambda error=error: self._microphone_error(error))
+            if self.settings.low_memory:
+                self.engine.unload()
+            self.speech_engine.load(model_size)
+            if stop_event.is_set():
+                return '', False, False
+            audio, overflow, limit = record_audio(stop_event,
+                lambda: self.bridge.post(self._microphone_recording_started))
+            if self.bridge.closed:
+                return '', overflow, limit
+            self.bridge.post(lambda: self.status.set('Türkçe transkripsiyon yapılıyor...'))
+            return self.speech_engine.transcribe(audio), overflow, limit
+        finally:
+            if self.settings.low_memory or self.bridge.closed:
+                self.speech_engine.unload()
 
     def _microphone_recording_started(self):
         self.record_button.configure(text="Kaydı bitir ve yazıya çevir", state="normal")
@@ -236,12 +229,12 @@ class AnamnezApp:
                 "Whisper bileşenleri kurulu değil",
                 "Dikte için gereken yerel bileşenler bulunamadı. Uygulama klasöründeki "
                 "'WhisperKurulum.vbs' dosyasına çift tıklayıp kurulumu tamamlayın.\n\n"
-                f"Ayrıntı: {error}",
+                "Kurulumu tamamlayıp yeniden deneyin.",
             )
         else:
             messagebox.showerror(
                 "Dikte başarısız oldu",
-                f"Mikrofon kaydı veya Whisper çözümlemesi tamamlanamadı:\n{error}\n\n"
+                "Mikrofon kaydı veya Whisper çözümlemesi tamamlanamadı.\n\n"
                 "Mikrofon iznini, internet bağlantısını (model ilk indirme için) ve seçili modeli kontrol edin.",
             )
 
@@ -351,7 +344,11 @@ class AnamnezApp:
             filetypes=[("Metin dosyası", "*.txt"), ("Tüm dosyalar", "*.*")],
         )
         if path:
-            Path(path).write_text(self.output_text.get("1.0", "end-1c"), encoding="utf-8")
+            try:
+                Path(path).write_text(self.output_text.get("1.0", "end-1c"), encoding="utf-8")
+            except OSError:
+                messagebox.showerror('Kayıt', 'Metin kaydedilemedi. Konumu ve yazma iznini kontrol edin.')
+                return
             self.status.set("Anamnez metni kaydedildi: " + path)
 
     def _save_json(self):
@@ -362,7 +359,11 @@ class AnamnezApp:
             filetypes=[("JSON dosyası", "*.json"), ("Tüm dosyalar", "*.*")],
         )
         if path:
-            save_patient(path, self.values)
+            try:
+                save_patient(path, self.values)
+            except OSError:
+                messagebox.showerror('Kayıt', 'Dosya kaydedilemedi. Konumu ve yazma iznini kontrol edin.')
+                return
             self.status.set("Hasta verisi kaydedildi: " + path)
 
     def _load_json(self):
@@ -376,29 +377,50 @@ class AnamnezApp:
         except (OSError, json.JSONDecodeError, ValueError) as error:
             messagebox.showerror("Dosya açılamadı", str(error))
             return
+        self.dictation_text.delete('1.0','end')
+        self.clinical.invalidate()
+        extension = self.values.get('_v2')
+        if isinstance(extension, dict):
+            from safety.output_validator import clinical_schema
+            try:
+                restored = clinical_schema(extension.get('structured_anamnesis'))
+            except ValueError:
+                pass
+            else:
+                self.clinical.structured = restored
+                self.clinical._display(self.clinical.facts, json.dumps(restored,ensure_ascii=False,indent=2))
         self._sync_form()
         self._refresh_output()
         self.status.set("Hasta verisi yüklendi.")
 
     def _start_reference_search(self):
-        self.search_button.configure(state="disabled")
-        self.status.set("PubMed kaynakları aranıyor...")
-        threading.Thread(target=self._search_references, daemon=True).start()
-
-    def _search_references(self):
-        try:
-            result = fetch_pubmed_references(RECOMMENDATIONS)
-        except (OSError, ValueError, KeyError, ET.ParseError) as error:
-            self.root.after(0, lambda error=error: self._reference_error(error))
+        if self.bridge.busy:
+            self.status.set('Devam eden işlemin bitmesini bekleyin.')
             return
-        self.root.after(0, lambda: self._reference_success(*result))
+        self.search_button.configure(state='disabled')
+        self.status.set('PubMed kaynakları aranıyor...')
+        self.bridge.start(lambda: fetch_pubmed_references(RECOMMENDATIONS),
+            lambda result: self._reference_success(*result), self._reference_error)
+
+    def _close(self):
+        if self._recording_stop:
+            self._recording_stop.set()
+        self.bridge.close()
+        # Native inference cannot be safely interrupted; daemon jobs finish or exit
+        # with the process, without posting callbacks to the destroyed window.
+        self.root.destroy()
+
+    def _transcript_changed(self, _event=None):
+        if self.dictation_text.edit_modified():
+            self.clinical.invalidate()
+            self.dictation_text.edit_modified(False)
 
     def _reference_error(self, error):
         self.search_button.configure(state="normal")
         self.status.set("PubMed araması başarısız oldu.")
         messagebox.showerror(
             "PubMed kaynakları alınamadı",
-            f"PubMed bağlantısı veya yanıtı başarısız oldu: {error}\n"
+            "PubMed bağlantısı veya yanıtı başarısız oldu.\n"
             "İnternet bağlantısını kontrol edip yeniden deneyin; Google Scholar bağlantıları kullanılabilir.",
         )
 

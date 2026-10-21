@@ -24,7 +24,7 @@ class PipelineTests(unittest.TestCase):
         self.assertIn(TRANSCRIPT,engine.generate_json.call_args.args[0])
 
     def test_malformed_json(self):
-        for value in ['{bad','null trailing','']:
+        for value in ['{bad','null trailing','','{"value":NaN}']:
             with self.assertRaises(LLMError):parse_json(value)
         self.assertEqual(parse_json('```json\n{"a":1}\n```'),{'a':1})
 
@@ -96,3 +96,22 @@ class PipelineTests(unittest.TestCase):
     def test_settings(self):
         self.assertTrue(Settings().validate().low_memory)
         with self.assertRaises(ValueError):Settings(threads=0).validate()
+
+    def test_legacy_only_fixed_queries(self):
+        from literature.legacy import fetch_pubmed_references
+        with self.assertRaises(PrivacyError):fetch_pubmed_references([('name','patient','Ahmet Yılmaz')])
+
+    def test_retrieval_excludes_unrequested_ids(self):
+        client=PubMedClient(Settings())
+        xml=b'<PubmedArticleSet><PubmedArticle><MedlineCitation><PMID>999</PMID><Article><ArticleTitle>Unexpected</ArticleTitle></Article></MedlineCitation></PubmedArticle></PubmedArticleSet>'
+        client._request=Mock(return_value=xml)
+        self.assertEqual(client.efetch(['123']),[])
+
+    def test_summary_json(self):
+        client=PubMedClient(Settings())
+        client._request=Mock(return_value=b'{"result":{"uids":["123"],"123":{"title":"Example"}}}')
+        self.assertEqual(client.esummary(['123'])['123']['title'],'Example')
+
+    def test_synthesis_rejects_invented_reference(self):
+        engine=Mock();engine.generate_json.return_value={'claims':[{'claim':'Kanıt var','pmid':'999','doi':None}],'limitations':''}
+        with self.assertRaises(LLMError):synthesize(engine,'Soru',[Article('123','Title','Actual abstract')],8192)
