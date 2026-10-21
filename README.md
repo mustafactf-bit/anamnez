@@ -1,42 +1,130 @@
-# Anamnez Asistanı
+# Anamnez Asistanı V2 Alpha
 
-Windows üzerinde Python 3 ile çalışan, Tkinter tabanlı Türkçe masaüstü uygulaması.
+Windows için tek birleşik Tkinter uygulaması. V1'in manuel giriş, etiketli
+dikte, CPU/INT8 faster-whisper, JSON/metin kaydı ve beş genel PubMed başlığı
+korunur; **Klinik Asistan** ve **Ayarlar** sekmeleri eklenir. Ayrı V1 ürünü yoktur.
+Mevcut VBS başlatıcıları ve `anamnez_asistani.py` aynı V2 uygulamasını açar.
 
-## Çalıştırma
+## Kurulum
 
-1. Python 3.10 veya üzerini yükleyin. Windows kurulumunda **Add Python to PATH** seçeneğini işaretleyin.
-2. İlk kullanımda `WhisperKurulum.vbs` dosyasına çift tıklayın. Gerekli paketleri uygulama klasöründeki `.venv` içine sessizce kurar; işlem internet hızınıza göre birkaç dakika sürebilir. Terminal kullanmanız gerekmez.
-3. Uygulamayı açmak için `AnamnezAsistani.vbs` dosyasına çift tıklayın. Kurulum yapıldıysa klasördeki sanal ortamı kullanır; konsol penceresi açmaz.
-4. İsterseniz `anamnez_asistani.py` dosyasını terminalden de çalıştırabilirsiniz:
+Hedef Windows 10/11 x86-64, dört çekirdek ve 8 GB RAM; önerilen 16 GB RAM.
+GPU/CUDA gerekmez. Gerçek 8 GB donanım performansı henüz ölçülmedi; RAM ihtiyacı
+model ve bağlam boyutuna bağlıdır. Python 3.10+ ve Tkinter gerekir.
+Windows paket uyumluluğu için Python 3.12 x64 kullanılabilir.
 
-   ```powershell
-   python anamnez_asistani.py
-   ```
+1. Python'u PATH'e ekleyerek kurun.
+2. `WhisperKurulum.vbs` ile ses bileşenlerini `.venv` içine kurun.
+3. `AnamnezAsistani.vbs` ile açın. Alternatif: `python app.py`.
 
-Mikrofon diktesi için `requirements.txt` içindeki `faster-whisper` ve `sounddevice` paketleri kurulur. PubMed'den yayın bilgisi getirmek için ayrıca internet bağlantısı gerekir.
+Manuel işlevler, ses ve LLM paketleri kurulmadan da açılır. Yerel LLM için
+uygulama klasöründe isteğe bağlı CPU backend'ini kurun:
 
-## Dikte ve alanlara aktarma
-
-Uygulamadaki **Dikte metni** sekmesinde **Mikrofonla dikte et** düğmesine basıp konuşun, ardından **Kaydı bitir ve yazıya çevir** düğmesine basın. Kayıt en fazla 15 dakika sürer. Ses, seçilen çok dilli Whisper modeliyle bilgisayarda işlenir; ses dosyası oluşturulmaz veya bir sunucuya gönderilmez. Model ilk kullanımda internetten indirilip önbelleğe alınır. Uygulama CPU üzerinde çalıştırır; ilk model indirme ve çözümleme zaman alabilir.
-
-Varsayılan `small` modeli düşük kaynak kullanımı için seçilmiştir. Model listesinden `medium`, `large-v3` veya `turbo` seçilebilir; büyük modeller daha fazla bellek ve işlem gücü ister. OpenAI Whisper Türkçeyi çok dilli modellerinde destekler, ancak dil desteği yüksek doğruluk garantisi değildir: aksan, arka plan gürültüsü, mikrofon ve özellikle tıbbi terimler sonucu etkileyebilir. Whisper'ın resmi model kartı da dil/aksan/diyalekt farkları ve söylenmemiş metin üretebilme olasılığı konusunda uyarır. Klinik kullanımda dökümü daima dinleyip düzeltin; tanı, ilaç, doz, ölçüm ve negasyonları özellikle kontrol edin.
-
-Whisper yerine Gemini web sitesinde dikte ettiğiniz metni kopyalayıp uygulamaya da yapıştırabilirsiniz. Alan etiketleriyle yazılmış satırlar ilgili alanı günceller; örneğin:
-
-```text
-Şikâyet: Halsizlik son iki aydır devam ediyor.
-Tansiyon: 120/80 mmHg
-HbA1c: 7,2
+```powershell
+.venv\Scripts\python.exe -m pip install -r requirements-llm.txt --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
 ```
 
-Etiketsiz cümleler mevcut şikâyet metninin sonuna eklenir. Dikte içinde açıkça ve değerle belirtilmeyen alanlara dokunulmaz; özellikle fizik muayenedeki `...` gibi eksik bilgiler değiştirilmez. Aktarılan bilgileri anamnez çıktısını kullanmadan önce kontrol edin.
+Wheel bulunamazsa kaynak derlemesi C/C++ derleyicisi gerektirebilir.
+[Resmî llama-cpp-python belgeleri](https://llama-cpp-python.readthedocs.io/en/latest/)
+CPU wheel ve Windows derleme seçeneklerini açıklar.
 
-## Öneriler ve kaynaklar
+Türkçe instruction/chat ve JSON çıktısını destekleyen, lisansı kullanımınıza
+uygun bir GGUF dosyasını temin edin. **Ayarlar** sekmesinde dosyayı seçip kaydedin.
+Model adı sabit değildir; otomatik GGUF indirmesi yoktur. `llama_cpp.Llama`
+yerel olarak `n_gpu_layers=0` ile çalışır. BitNet adapter'ı henüz eklenmedi;
+değiştirilebilir backend interface'i hazırdır.
 
-Uygulama beş genel klinik değerlendirme başlığı sunar. **PubMed kaynaklarını getir** düğmesi her başlık için sabit, genel arama terimlerini NCBI PubMed E-utilities ile arar ve bulunan kayıtların bağlantılarını gösterir. Her başlık ayrıca Google Scholar arama bağlantısı içerir. Google Scholar sonuçları uygulama içinde taranmaz.
+Bağımsız yerel model kontrolü:
 
-Hasta adı, kimlik bilgisi, ses, dikte metni ve anamnez alanları Whisper, PubMed veya Google Scholar hizmetlerine gönderilmez. PubMed'e yalnızca uygulamada yazılı genel literatür arama terimleri gönderilir. Hasta verisi yalnızca kullanıcı **JSON kaydet** veya metin kaydet işlemi yaptığında seçilen konuma yazılır.
+```powershell
+.venv\Scripts\python.exe -m ai.test_model --model "C:\modeller\model.gguf"
+```
 
-Whisper kaynakları: [OpenAI Whisper deposu](https://github.com/openai/whisper), [model kartı](https://github.com/openai/whisper/blob/main/model-card.md), [Whisper makalesi](https://arxiv.org/abs/2212.04356). Makaledeki çok dilli değerlendirmeler Türkçe desteğini anlamaya yardımcı olur; gerçek klinik dikte başarısının yerini tutmaz.
+## Kullanım
 
-Bu uygulama tanı koymaz ve tedavi önerisi yerine geçmez. Kaynaklar ve olası tetkikler, hastayı değerlendiren sağlık profesyoneli tarafından klinik bağlamda doğrulanmalıdır.
+- **Hasta bilgileri:** mevcut alanları elle düzenleyin.
+- **Dikte metni:** `small`, `medium`, `large-v3`, `turbo` seçenekleri korunur.
+  Türkçe, CPU INT8, VAD ve 15 dakika sınırı kullanılır. Ses dosyası yazılmaz.
+  İlk Whisper model indirmesi internet gerektirir; transkripsiyon yereldir.
+- **Dikteyi alanlara aktar:** V1 etiket parser'ı; etiketsiz metin şikâyete eklenir,
+  açıkça belirtilmeyen muayene ve diğer alanlar korunur.
+- **Klinik Asistan:** dikteden yerel modelle yapılandırılmış anamnez ve 2–5
+  literatür sorusu çıkarın. Bilgileri gözden geçirin. **Onaylanan anamnezi
+  alanlara aktar** yalnızca dolu şikâyet/özgeçmiş/ilaç bilgilerini aktarır.
+  Yaş/cinsiyet/laboratuvar ayrıntıları yapılandırılmış görünümde ve kayıt
+  sırasında `_v2` JSON uzantısında tutulur. Eksik alanlar değiştirilmez.
+- Soruyu seçin, soru ve İngilizce kavramları düzenleyin, **PubMed’de Ara**'ya
+  basın. PICO yalnızca uygun sorularda önerilir. Tek soru seçilir; birden fazla
+  soru ayrı aramalarla araştırılır. Otomatik araştırma başlatılmaz.
+- Önce 30 aday (ayarlanabilir 20–50), sonra alaka/tür/güncellik sıralaması,
+  ardından en fazla 5 yayınla sentez yapılır. Top-k değerleri ayarlanabilir.
+- **5 değerlendirme önerisi:** V1 genel başlıkları/sabit sorgularıdır; bunlar
+  hastaya özel AI değerlendirmesi değildir.
+- **Anamnez çıktısı:** pano, metin/JSON kaydı ve V1 JSON yüklemesi korunur.
+- **Ayarlar:** GGUF yolu, thread/bağlam/çıktı boyutları, Whisper modeli, düşük
+  RAM, retmax/top-k, timeout/retry/cache ve gerçek sorguyu gösterme seçenekleri.
+
+## Mahremiyet ve kaynaklar
+
+Ses, dikte, anamnez ve model istemleri yerel kalır; bulut LLM yoktur. PubMed'e
+yalnızca `safety/privacy.py` içindeki gözden geçirilmiş İngilizce klinik
+sözlükten türetilen sorgu ve sayısal PMID'ler gönderilir. İsim, TC, telefon,
+adres, dosya numarası veya serbest hasta metni kabul edilmez. Bilinmeyen doğru
+klinik kavramlar da engellenebilir; sözlük genişletmesi geliştirici incelemesi
+gerektirir. İlk alpha yalnızca kontrollü `Title/Abstract` sorguları üretir;
+MeSH/sinonim/tarih/tür filtrelerini otomatik genişletmez.
+
+PubMed istemcisi timeout, sınırlı retry/backoff ve istek aralığı kullanır.
+Önbellek yalnızca güvenli sorgu ve yayınları süreli/sınırlı olarak bellekte tutar.
+V1 Google Scholar bağlantıları yalnızca sabit genel klinik sorguları içerir.
+
+Sentez yalnızca getirilen, abstractı bulunan ve bağlama sığan yayınları kullanır.
+Yeterli abstract yoksa yayın listesi ve açıklama gösterilir. Her iddianın PMID'si
+ve varsa DOI'si senteze verilen retrieval kümesiyle doğrulanır. Geçersiz kaynak
+tüm sentezi engeller. Başlık/dergi/yıl ve tıklanabilir PubMed bağlantıları
+modelden değil gerçek PubMed metadata'sından alınır. Bu kontrol iddianın yayın
+tarafından bilimsel olarak desteklendiğini kanıtlamaz; hekim kaynağı incelemelidir.
+
+Hasta verileri yalnızca kaydetmeyi seçtiğiniz dosyalara yazılır; şifrelenmez.
+Kayıt konumunun erişim ve yedeklemesini kurum politikanıza göre yönetin.
+Ayarlar `%LOCALAPPDATA%\AnamnezAsistani\settings.json` içindedir; hasta verisi
+içermez. Varsayılan logging hasta içeriği, exception metni veya istek gövdesi
+yazmaz. Hasta içeriği debug logu eklenmemiştir.
+
+## Bellek, hatalar ve test
+
+Tek ağır worker çalışır. Tk widget'ları yalnızca ana thread'den kuyruk üzerinden
+güncellenir. Düşük RAM modunda Whisper/LLM sırayla yüklenir ve işlem sonunda
+bırakılır. Hızlı modda modeller yeniden kullanılabilir, RAM tüketimi artabilir.
+Kapanışta mikrofon durdurulur ve geç callback'ler atılır. Native inference
+için işlem ortası iptal düğmesi yoktur. Eksik model/mikrofon, hatalı JSON,
+timeout, boş PubMed ve geçersiz kaynaklar kullanıcı mesajlarıyla ele alınır.
+
+```powershell
+python -m unittest discover -s tests -v
+python -m compileall -q ai literature safety speech storage ui app.py settings.py
+python -m benchmarks.run_benchmark --model "C:\modeller\model.gguf" --output benchmark-results.json
+```
+
+Unit testler sentetik veri ve model test double'ları kullanır. Gerçek Tk testleri
+gizli pencereler açar; ekran yoksa atlanır. CI: Windows ve Linux/Xvfb, Python
+3.10/3.12. Yerel son kontrol: 27 test geçti.
+
+Benchmark gerçek modelle alan bazlı exact-match, soru şema geçerliliği, güvenli
+sorgu oranı, citation membership, süre, process peak RAM ve çıktı tokenı ölçer.
+Retrieval fixture'ı açıkça sentetiktir; gerçek yayın değildir. Soru ve sorgunun
+klinik kalitesi için hekim değerlendirmesi gerekir; şema puanı kalite puanı
+değildir. Eksik model başarı sayılmaz, çıkış kodu 1 döner.
+
+## Geçiş ve sınırlar
+
+Eski kod ve kullanıcı kayıtları veri kaybına yol açacak biçimde silinmez. V1 düz
+JSON'ları okunur; bilinmeyen uzantılar korunur. JSON yazımı atomik replace kullanır.
+Geri dönüş etiketi, bağımsız yedek, mimari, faz sonuçları ve açık kabul kapıları
+[geçiş raporundadır](docs/V2_MIGRATION.md).
+
+Bu bir **V2-alpha** uygulamasıdır. Gerçek GGUF çıkarım kalitesi, mikrofon/Whisper
+regresyonu ve 8 GB RAM performansı henüz doğrulanmamıştır. Şema kontrolü eksik
+bilgi uydurulmasını tamamen önleyemez; her çıkarım hekimce gözden geçirilmelidir.
+V1'den korunan örnek form/muayene şablonu demo içeriğidir; gerçek hasta bulgusu
+veya yapılmış işlem kabul edilmemelidir. Sistem kesin tanı, reçete, doz veya
+hekim onaysız klinik karar üretmek için değildir.
