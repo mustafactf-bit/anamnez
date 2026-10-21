@@ -251,12 +251,12 @@ class NoteUITests(unittest.TestCase):
             self.assertEqual(file.read_text(encoding='utf-8'),expected)
         self.assertEqual(self.app.note_panel.body(),text)
 
-    def test_saved_stale_draft_is_not_silently_approved_on_load(self):
+    def test_production_rejects_unapproved_stale_draft_save(self):
         self.draft();self.app.entry_variables['tansiyon'].set('110/70')
         with tempfile.TemporaryDirectory() as folder:
             file=str(Path(folder)/'stale.json')
             with patch('ui.main_window.filedialog.asksaveasfilename',return_value=file):self.app._save_json()
-            with patch('ui.main_window.filedialog.askopenfilename',return_value=file),patch('ui.main_window.messagebox.askyesno',return_value=True):self.app._load_json()
-            self.assertFalse(self.app.note_panel.complete())
+            self.assertFalse(Path(file).exists())
+            self.assertIn('onaylayın',self.app.status.get())
             self.assertEqual(self.clip.value,'')
 

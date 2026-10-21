@@ -13,7 +13,9 @@ def build_settings_tab(app,frame):
         'max_tokens':'En fazla çıktı tokenı','whisper_model':'Whisper modeli','low_memory':'Düşük RAM modu',
         'pubmed_retmax':'PubMed aday sayısı (20–50)','rerank_top_k':'Sıralama top-k',
         'synthesis_top_k':'Sentez top-k (1–10)','timeout':'Ağ zaman aşımı (sn)','retries':'Yeniden deneme',
-        'cache_seconds':'Literatür önbelleği (sn)','debug_queries':'Gerçek arama sorgusunu göster'}
+        'cache_seconds':'Literatür önbelleği (sn)','debug_queries':'Gerçek arama sorgusunu göster',
+        'local_correction':'Yerel yazım kontrolü',
+        'test_mode':'TEST MODU — ham metin saklanabilir (sentetik/izinli veri)'}
     for row,(key,value) in enumerate(asdict(app.settings).items()):
         ttk.Label(frame,text=labels[key]).grid(row=row,column=0,sticky='w',pady=4)
         variable=tk.BooleanVar(value=value) if type(value) is bool else tk.StringVar(value=str(value))
@@ -34,7 +36,11 @@ def build_settings_tab(app,frame):
         def work():
             app.engine.unload();app.speech_engine.unload()
         def done(_):
+            was_test_mode=app.settings.test_mode
             app.settings=settings;app.engine=GGUFEngine(settings);app.pubmed=PubMedClient(settings)
+            if was_test_mode and not settings.test_mode:
+                app._discard_raw_after_approval()
+            app.note_panel.update_mode_notice()
             app.whisper_model.set(settings.whisper_model)
             app.status.set('Ayarlar kaydedildi.')
         app.bridge.start(work,done,lambda _:messagebox.showerror('Ayarlar','Model kaynakları serbest bırakılamadı.'))

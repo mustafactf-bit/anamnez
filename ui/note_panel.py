@@ -15,9 +15,13 @@ class NotePanel:
         self.last_copied=None
         self.edited=False
         self._source=self.sources()
-        ttk.Label(frame,text='1. Dikte veya alanları doldurun → 2. Taslağı kontrol edin → 3. Onaylayın → 4. Miamed’de mevcut anamnezin sonuna yapıştırın.',wraplength=940).pack(anchor='w')
+        self.mode_notice=tk.StringVar()
+        ttk.Label(frame,textvariable=self.mode_notice,wraplength=940).pack(anchor='w')
+        self.update_mode_notice()
+        ttk.Label(frame,text='1. Dikteyi başlat → 2. Dikteyi bitir → metin otomatik hazırlanır → 3. Onayla ve aktar.',wraplength=940).pack(anchor='w')
         top=ttk.Frame(frame);top.pack(fill='x',pady=6)
-        ttk.Button(top,text='Dikte',command=lambda:app.tabs.select(app.dictation_tab)).pack(side='left')
+        self.record_button=ttk.Button(top,text='1. Dikteyi başlat',command=app._toggle_microphone_recording)
+        self.record_button.pack(side='left')
         ttk.Button(top,text='Manuel alanlar',command=lambda:app.tabs.select(app.form_tab)).pack(side='left',padx=6)
         ttk.Button(top,text='Dikte ve alanlardan taslak hazırla',command=self.prepare).pack(side='left')
         ttk.Button(top,text='Yeni görüşme',command=app._new_visit).pack(side='right')
@@ -26,7 +30,7 @@ class NotePanel:
         self.editor.pack(fill='both',expand=True)
         self.editor.bind('<<Modified>>',self._edited)
         buttons=ttk.Frame(frame);buttons.pack(fill='x',pady=6)
-        self.approve_button=ttk.Button(buttons,text='Onayla ve tamamla — otomatik kopyala',command=self.complete)
+        self.approve_button=ttk.Button(buttons,text='3. Onayla ve aktar (şimdilik panoya)',command=self.complete,state='disabled')
         self.approve_button.pack(side='left')
         self.recopy_button=ttk.Button(buttons,text='Yeniden kopyala',command=self.recopy,state='disabled')
         self.recopy_button.pack(side='left',padx=8)
@@ -41,6 +45,16 @@ class NotePanel:
         ttk.Button(files,text='JSON aç',command=app._load_json).pack(side='left')
         app.draft_text=self.editor
         app.output_text=self.preview
+
+    def update_mode_notice(self):
+        self.mode_notice.set('TEST MODU AÇIK — ham metin test kaydına yazılabilir; yalnızca sentetik/izinli veri kullanın.'
+                             if self.app.settings.test_mode else 'Üretim modu: yalnızca onayladığınız son anamnez kaydedilir.')
+
+    def update_actions(self):
+        """Third action is usable only with complete, current, nonempty input."""
+        ready=(not self.app._processing_dictation and self.app._recording_stop is None
+               and self.sources()==self._source and bool(self.body().strip()))
+        self.approve_button.configure(state='normal' if ready else 'disabled')
 
     def sources(self):
         """Full input snapshot, compared only in memory and never logged."""
@@ -73,6 +87,7 @@ class NotePanel:
             message+=' Eski pano temizlenemedi; Miamed’e yapıştırmayın, yeniden onaylayın.'
         self.state.set(message)
         self._preview(self.body())
+        self.update_actions()
 
     def source_changed(self):
         if self.sources()!=self._source:
@@ -104,7 +119,7 @@ class NotePanel:
 
     def complete(self):
         """One explicit approval stamps and copies exactly the displayed text."""
-        if self.app._recording_stop is not None:
+        if self.app._recording_stop is not None or self.app._processing_dictation:
             self.state.set('Kayıt veya transkripsiyon sürüyor. Anamnezi tamamlamadan önce bitmesini bekleyin.')
             return False
         if self.editor.edit_modified():self._edited()
@@ -121,6 +136,7 @@ class NotePanel:
             self.state.set(str(error));return False
         self.approved=note
         self._preview(note.text)
+        self.app._discard_raw_after_approval()
         self.recopy_button.configure(state='normal')
         return self._copy()
 
@@ -146,14 +162,23 @@ class NotePanel:
         return self._copy()
 
     def snapshot(self):
-        """Explicit local save includes draft and transcript, not an approval grant."""
+        """Only explicit test mode may persist raw sources or an unapproved draft."""
         self.source_changed()
         if self.editor.edit_modified():self._edited()
-        return {'body':self.body(),
-                'transcript':self.app.dictation_text.get('1.0','end-1c'),
-                'dictation_applied':self.app._dictation_applied,
+        snapshot={'body':self.body(),
                 'last_approved_text':self.approved.text if self.approved else None,
+                'approved_at':self.approved.approved_at.isoformat() if self.approved else None,
                 'sources_current':self.sources()==self._source}
+        if self.app.settings.test_mode:
+            snapshot.update(transcript=self.app.dictation_text.get('1.0','end-1c'),
+                            dictation_applied=self.app._dictation_applied)
+        return snapshot
+
+    def current_approval(self):
+        """Never save stale approval after an unprocessed edit event."""
+        if self.editor.edit_modified():self._edited()
+        if self.sources()!=self._source:self.source_changed()
+        return self.approved is not None and self.body()==self.approved.body
 
     def export_text(self):
         """Save precisely the current preview; never regenerate over manual edits."""

@@ -54,6 +54,8 @@ class ClinicalAssistantTab:
             self.app.status.set('Devam eden işlemin bitmesini bekleyin.');return
         transcript=self.app.dictation_text.get('1.0','end').strip()
         if not transcript:
+            transcript=self.app.note_panel.body().strip()
+        if not transcript:
             messagebox.showinfo('Klinik Asistan','Önce dikte metnini girin.');return
         self.invalidate();version=self.version
         settings=self.app.settings
