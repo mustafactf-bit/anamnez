@@ -10,7 +10,7 @@ $sentinel = Join-Path $dataDir 'install-test-sentinel.json'
 $before = (Get-FileHash $sentinel).Hash
 $oldScript = Join-Path $PSScriptRoot 'previous-test.iss'
 # This is a packaging fixture for the previous layout, not an actual old release.
-(Get-Content (Join-Path $PSScriptRoot 'installer.iss') -Raw).Replace('2.0.2-alpha.1.2','2.0.1-alpha.1.2') | Set-Content $oldScript
+(Get-Content (Join-Path $PSScriptRoot 'installer.iss') -Raw).Replace('2.0.2-alpha.1.3','2.0.2-alpha.1.2') | Set-Content $oldScript
 & $Compiler $oldScript
 if ($LASTEXITCODE -ne 0) { throw 'Previous fixture compiler failed' }
 $installer = Join-Path (Get-Location) 'dist/Anamnez-Asistani-Kurulum.exe'
@@ -22,8 +22,8 @@ Install-Fixture
 & $Compiler (Join-Path $PSScriptRoot 'installer.iss')
 if ($LASTEXITCODE -ne 0) { throw 'Current compiler failed' }
 Install-Fixture
-$oldExe = Join-Path $appDir 'versions/2.0.1-alpha.1.2/AnamnezAsistani.exe'
-$newExe = Join-Path $appDir 'versions/2.0.2-alpha.1.2/AnamnezAsistani.exe'
+$oldExe = Join-Path $appDir 'versions/2.0.2-alpha.1.2/AnamnezAsistani.exe'
+$newExe = Join-Path $appDir 'versions/2.0.2-alpha.1.3/AnamnezAsistani.exe'
 if (!(Test-Path $oldExe) -or !(Test-Path $newExe)) { throw 'Side-by-side versions missing' }
 if ((Get-FileHash $sentinel).Hash -ne $before) { throw 'User data changed' }
 $current = (Get-ItemProperty HKCU:/Software/AnamnezAsistani).CurrentExe

@@ -19,7 +19,7 @@ from storage.patient_storage import save_patient, load_patient
 from storage.record_policy import prepare_record, without_legacy_raw
 from speech.dictation_pipeline import run_dictation
 from note_workflow import build_note_body
-from settings import load_settings, Settings
+from settings import load_settings, save_settings, Settings
 from ai.llm_engine import GGUFEngine
 from literature.pubmed_client import PubMedClient
 from speech.whisper_engine import WhisperEngine
@@ -32,11 +32,14 @@ from ui.clinical_assistant_tab import ClinicalAssistantTab
 from ui.settings_tab import build_settings_tab
 from ui.update_panel import UpdatePanel
 from ui.model_progress import ModelDownloadProgress
+from ai.encounter_extractor import extract_encounter
+from ai.dictation_corrector import CorrectionResult
+from speech.dictation_pipeline import ProcessedDictation
 
 class AnamnezApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Anamnez Asistanı V2-alpha1.2.2")
+        self.root.title("Anamnez Asistanı V2-alpha1.3")
         self.root.geometry("1050x760")
         self.root.minsize(820, 600)
         self.values = dict(INITIAL_DATA)
@@ -47,6 +50,7 @@ class AnamnezApp:
         self.clipboard = create_clipboard(root)
         self.reference_ids = []
         self._processing_dictation = False
+        self._review_pending = False
         self._speech_context = None
         self._suppress_source_changes = False
         self._recording = False
@@ -69,11 +73,17 @@ class AnamnezApp:
     def _build_ui(self):
         header = ttk.Frame(self.root, padding=(12, 10))
         header.pack(fill="x")
-        ttk.Label(header, text="Anamnez Asistanı V2-alpha1.2.2", font=("Segoe UI", 16, "bold")).pack(anchor="w")
+        assets=Path(__file__).resolve().parents[1]/'assets'
+        self.logo=tk.PhotoImage(file=str(assets/'logo-header.png'))
+        self.window_icon=tk.PhotoImage(file=str(assets/'logo-icon.png'))
+        self.root.iconphoto(True,self.window_icon)
+        ttk.Label(header,image=self.logo).pack(side='left',padx=(0,12))
+        header_text=ttk.Frame(header);header_text.pack(side='left',fill='x',expand=True)
+        ttk.Label(header_text, text="Anamnez Asistanı V2-alpha1.3", font=("Segoe UI", 16, "bold")).pack(anchor="w")
         ttk.Label(
-            header,
+            header_text,
             text="Dikte için Türkçe Whisper modeli yerel olarak çalışır. Dikte ve hasta bilgileri dış servislere gönderilmez; yalnızca genel literatür aramaları PubMed'e iletilir.",
-            wraplength=990,
+            wraplength=850,
         ).pack(anchor="w", pady=(4, 0))
 
         self.tabs = ttk.Notebook(self.root)
@@ -192,6 +202,9 @@ class AnamnezApp:
         if self.bridge.busy:
             self.status.set('Devam eden işlemin bitmesini bekleyin.')
             return
+        if self._review_pending:
+            self.status.set('Önce inceleme bekleyen konuşmaları değerlendirin.');return
+        if not self._clinical_model_ready():return
         model_size = self.whisper_model.get()
         if model_size not in ("small", "medium", "large-v3", "turbo"):
             messagebox.showerror("Whisper modeli", "Listeden geçerli bir Whisper modeli seçin.")
@@ -212,6 +225,64 @@ class AnamnezApp:
             self._microphone_transcription_finished,
             self._microphone_error,
         )
+
+    def _clinical_model_ready(self):
+        if not self.settings.structure_dictation:return True
+        if self.settings.model_path and Path(self.settings.model_path).is_file():return True
+        from ai.model_setup import default_model_path, SIZE
+        cached=default_model_path()
+        if not self.settings.model_path and cached.is_file() and cached.stat().st_size==SIZE:
+            self.settings.model_path=str(cached)
+            self.engine=GGUFEngine(self.settings)
+            if hasattr(self,'settings_values'):self.settings_values['model_path'].set(str(cached))
+            try:save_settings(self.settings)
+            except OSError:pass
+            return True
+        if messagebox.askyesno('Yerel anamnez AI ilk kurulumu',
+                'Anamnez ayıklama için Whisper’dan ayrı bir yerel dil modeli gerekir. '
+                'Qwen3 1.7B modeli yaklaşık 1,3 GB indirilir ve bilgisayarınızda çalışır. '
+                'Hasta konuşması internete gönderilmez. Şimdi indirilsin mi?'):
+            self._install_clinical_model()
+        return False
+
+    def _install_clinical_model(self):
+        if self.bridge.busy:
+            self.status.set('Önce devam eden işlemin bitmesini bekleyin.');return
+        from ai.model_setup import install_model
+        self.model_progress.reset()
+        self.status.set('Yerel anamnez AI modeli indiriliyor; bu yalnızca ilk kurulumdur.')
+        def progress(event):self.bridge.post(lambda:self.model_progress.update(event))
+        def done(path):
+            self.settings.model_path=path
+            try:save_settings(self.settings)
+            except OSError:
+                self.status.set('Model indirildi; ayarlar kaydedilemedi. Ayarlar’dan dosyayı seçin.');return
+            self.engine=GGUFEngine(self.settings)
+            if hasattr(self,'settings_values'):self.settings_values['model_path'].set(path)
+            self.status.set('Yerel AI hazır. Dikteyi başlatabilirsiniz.')
+        self.bridge.start(lambda:install_model(progress),done,
+            self._clinical_model_install_failed)
+
+    def _clinical_model_install_failed(self,_):
+        from speech.model_download import ModelProgress
+        self.model_progress.update(ModelProgress('error','Yerel AI'))
+        self.status.set('Yerel AI modeli indirilemedi. Bağlantı/disk alanını kontrol edip Ayarlar’dan yeniden deneyin.')
+
+    def _structure_manual_dictation(self,text):
+        if self.bridge.busy or self._review_pending:return False
+        if not self._clinical_model_ready():return False
+        self._speech_context=(self.note_panel.sources(),self.note_panel.body())
+        self._processing_dictation=True;self.note_panel.invalidate('Yerel AI anamnezi ayıklıyor...')
+        def work():
+            try:
+                if self.settings.low_memory:self.speech_engine.unload()
+                extraction=extract_encounter(self.engine,text)
+                return ProcessedDictation(CorrectionResult(text),extraction=extraction,existing_source=True)
+            except Exception:
+                return ProcessedDictation(CorrectionResult(text),structure_error='Yerel AI ayıklaması tamamlanamadı; metni inceleyin.',existing_source=True)
+            finally:
+                if self.settings.low_memory:self.engine.unload()
+        return self.bridge.start(work,self._microphone_transcription_finished,self._microphone_error)
 
     def _record_and_transcribe(self, model_size, stop_event):
         return run_dictation(self.speech_engine, self.engine, self.settings,
@@ -243,7 +314,7 @@ class AnamnezApp:
             self.status.set('Anamneze yeni metin eklenmedi.')
             return
         existing = self.dictation_text.get('1.0','end-1c').strip()
-        combined = existing + ('\n' if existing else '') + transcript
+        combined = transcript if result.existing_source else existing + ('\n' if existing else '') + transcript
         self.dictation_text.delete('1.0','end')
         self.dictation_text.insert('1.0', combined)
         self.dictation_text.edit_modified(False)
@@ -258,6 +329,36 @@ class AnamnezApp:
             return
         self._read_form()
         base = context[1] if context else self.note_panel.body()
+        if self.settings.structure_dictation:
+            waiting=[];accepted={}
+            if result.extraction is not None:
+                waiting=list(result.extraction.review)
+                for field,value in result.extraction.fields.items():
+                    current=self.values.get(field,'').strip()
+                    if current and current!=value:
+                        waiting.append(f'{FIELDS[field]} alanında mevcut bilgi var. Yeni kaynak: {value}')
+                    elif not current:
+                        accepted[field]=value
+                self._suppress_source_changes=True
+                try:
+                    for field,value in accepted.items():
+                        self.values[field]=value;self.entry_variables[field].set(value)
+                finally:self._suppress_source_changes=False
+                new_body=build_note_body(accepted) if base else build_note_body(self.values)
+                self.note_panel._set_body(base+('\n\nEK ANAMNEZ:\n'+new_body if new_body else '') if base else new_body)
+                self._dictation_applied=combined
+                self.note_panel.set_selection_details(waiting,result.extraction.excluded)
+            else:
+                waiting=[result.structure_error or 'Anamnez ayıklaması doğrulanamadı.',combined]
+                self.note_panel._set_body(base)
+                self.note_panel.set_selection_details(waiting,())
+            self._review_pending=bool(waiting)
+            self.note_panel.update_actions()
+            self.note_panel.state.set('Yerel AI ilgili kaynak bilgilerini anamnez alanlarına yerleştirdi. '
+                +('İnceleme bekleyen bölümleri değerlendirin.' if waiting else 'Alanları ve son metni kontrol edip onaylayın.'))
+            self.status.set('Anamnez ayıklandı; ilgisiz konuşmalar son metne eklenmedi.' if result.extraction else 'Yerel AI tamamlanamadı; ham konuşma otomatik anamneze eklenmedi.')
+            self.tabs.select(self.output_tab)
+            return
         if not base:
             self.note_panel._set_body(build_note_body(self.values, combined))
         else:
@@ -375,6 +476,8 @@ class AnamnezApp:
         if not text:
             messagebox.showinfo("Dikte metni", "Önce dikte metnini yapıştırın.")
             return
+        if self.settings.structure_dictation:
+            return self._structure_manual_dictation(text)
         if text == self._dictation_applied:
             self.status.set('Bu dikte zaten alanlara aktarıldı; tekrar eklenmedi.')
             return
@@ -450,6 +553,8 @@ class AnamnezApp:
             return
         if not self._leave_visit():
             return
+        self._review_pending=False
+        self.note_panel.clear_selection_details()
         if self.settings.test_mode:
             self.values = loaded
             saved_note = loaded.get('_note_draft')
@@ -501,6 +606,7 @@ class AnamnezApp:
         self.dictation_text.delete('1.0','end')
         self.dictation_text.edit_reset()
         self._dictation_applied = ''
+        self.note_panel.clear_selection_details()
         self.bridge.close()
         # Native inference cannot be safely interrupted; daemon jobs finish or exit
         # with the process, without posting callbacks to the destroyed window.
@@ -551,6 +657,8 @@ class AnamnezApp:
             return False
         if not self._leave_visit():
             return False
+        self._review_pending=False
+        self.note_panel.clear_selection_details()
         self.values = dict(INITIAL_DATA)
         self._dictation_applied = ''
         self._test_raw_transcript = ''
@@ -571,6 +679,8 @@ class AnamnezApp:
         """Production keeps only the reviewed note; no forensic zeroization claim."""
         if self.settings.test_mode:
             return
+        self._review_pending=False
+        self.note_panel.clear_selection_details()
         self._suppress_source_changes = True
         try:
             self.dictation_text.delete('1.0','end')

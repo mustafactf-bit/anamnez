@@ -9,12 +9,14 @@ from literature.pubmed_client import PubMedClient
 def build_settings_tab(app,frame):
     """Build configuration without depending on loaded native inference libraries."""
     values={}
+    app.settings_values=values
     labels={'model_path':'Yerel GGUF dosyası','context_size':'Bağlam boyutu','threads':'CPU iş parçacığı',
         'max_tokens':'En fazla çıktı tokenı','whisper_model':'Whisper modeli','low_memory':'Düşük RAM modu',
         'pubmed_retmax':'PubMed aday sayısı (20–50)','rerank_top_k':'Sıralama top-k',
         'synthesis_top_k':'Sentez top-k (1–10)','timeout':'Ağ zaman aşımı (sn)','retries':'Yeniden deneme',
         'cache_seconds':'Literatür önbelleği (sn)','debug_queries':'Gerçek arama sorgusunu göster',
         'local_correction':'Yerel yazım kontrolü',
+        'structure_dictation':'Yerel AI ile ilgisiz konuşmaları ayır ve anamnez alanlarını doldur',
         'test_mode':'TEST MODU — ham metin saklanabilir (sentetik/izinli veri)'}
     for row,(key,value) in enumerate(asdict(app.settings).items()):
         ttk.Label(frame,text=labels[key]).grid(row=row,column=0,sticky='w',pady=4)
@@ -45,4 +47,5 @@ def build_settings_tab(app,frame):
             app.status.set('Ayarlar kaydedildi.')
         app.bridge.start(work,done,lambda _:messagebox.showerror('Ayarlar','Model kaynakları serbest bırakılamadı.'))
     ttk.Button(frame,text='Ayarları kaydet',command=save).grid(row=len(values),column=1,sticky='e',pady=10)
+    ttk.Button(frame,text='Yerel anamnez AI modelini indir (ilk kurulum)',command=app._install_clinical_model).grid(row=len(values)+1,column=1,sticky='e',pady=6)
     frame.columnconfigure(1,weight=1)

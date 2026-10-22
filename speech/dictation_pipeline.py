@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 from ai.dictation_corrector import correct_transcript, CorrectionResult
 from speech.audio_recorder import record_audio
+from ai.encounter_extractor import extract_encounter, EncounterExtraction
 
 
 @dataclass(frozen=True)
@@ -11,6 +12,9 @@ class ProcessedDictation:
     input_overflow: bool = False
     reached_limit: bool = False
     test_raw: str = ''
+    extraction: EncounterExtraction | None = None
+    structure_error: str = ''
+    existing_source: bool = False
 
 
 def run_dictation(whisper, engine, settings, model_size, stop_event, on_started,
@@ -31,9 +35,19 @@ def run_dictation(whisper, engine, settings, model_size, stop_event, on_started,
         on_status('Yerel yazım kontrolü ve anamnez hazırlanıyor...')
         if settings.local_correction:
             correction=correct_transcript(transcript,
-                engine if settings.model_path and len(transcript)<=16000 else None)
+                engine if settings.model_path and not settings.structure_dictation and len(transcript)<=16000 else None)
         else:correction=CorrectionResult(transcript,mode='disabled')
+        extraction=None;structure_error=''
+        if settings.structure_dictation:
+            on_status('Yerel AI hasta bilgilerini ayıklayıp alanlara yerleştiriyor...')
+            try:
+                if not settings.model_path:raise ValueError('missing model')
+                extraction=extract_encounter(engine,correction.text)
+            except Exception:
+                structure_error='Yerel AI anamnezi güvenilir biçimde ayıklayamadı. Dikte ikincil sekmede tutuldu; son metni elle düzenleyip incelemeyi tamamlayın.'
+            finally:
+                if settings.low_memory:engine.unload()
         return ProcessedDictation(correction,overflow,limit,
-                                  transcript if settings.test_mode else '')
+                                  transcript if settings.test_mode else '',extraction,structure_error)
     finally:
         if settings.low_memory or is_closed():whisper.unload()

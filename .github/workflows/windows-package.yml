@@ -40,5 +40,5 @@ jobs:
           if (!$data.model_load -or !$data.silence_transcription) { throw 'Actual model inference failed' }
       - uses: actions/upload-artifact@v4
         with:
-          name: Anamnez-alpha1.2.2-Windows
+          name: Anamnez-alpha1.3-Windows
           path: dist/Anamnez-Asistani-Kurulum.exe

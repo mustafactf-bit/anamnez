@@ -23,6 +23,7 @@ class Settings:
     cache_seconds: int = 300
     debug_queries: bool = False
     local_correction: bool = True
+    structure_dictation: bool = True
     test_mode: bool = False
 
     def validate(self) -> 'Settings':
@@ -36,7 +37,7 @@ class Settings:
             raise ValueError('Top-k veya model bağlam ayarları uyumsuz.')
         if self.whisper_model not in ('small','medium','large-v3','turbo'):
             raise ValueError('Geçersiz Whisper modeli.')
-        if not isinstance(self.model_path,str) or any(type(getattr(self,k)) is not bool for k in ('low_memory','debug_queries','local_correction','test_mode')):
+        if not isinstance(self.model_path,str) or any(type(getattr(self,k)) is not bool for k in ('low_memory','debug_queries','local_correction','structure_dictation','test_mode')):
             raise ValueError('Geçersiz ayar türü.')
         return self
 

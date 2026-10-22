@@ -18,6 +18,7 @@ class ModelDownloadProgress:
 
     def update(self,event):
         self.model=event.model
+        label=event.model if event.model.startswith('Yerel AI') else 'Whisper '+event.model
         if not self.frame.winfo_manager():
             siblings=self.frame.master.pack_slaves()
             placement={'before':siblings[0]} if siblings else {}
@@ -25,24 +26,24 @@ class ModelDownloadProgress:
         if event.phase=='downloading':
             percent=event.percent
             suffix=f'%{percent}' if percent is not None else 'boyut belirleniyor'
-            self.text.set(f'Whisper {event.model} indiriliyor — {suffix}')
+            self.text.set(f'{label} indiriliyor — {suffix}')
             self.bar.coords(self.fill,0,0,230*(percent or 0)/100,12)
         elif event.phase=='downloaded':
             self.bar.coords(self.fill,0,0,230,12)
-            self.text.set(f'Whisper {event.model} — %100, model hazırlanıyor')
+            self.text.set(f'{label} — %100, model hazırlanıyor')
         elif event.phase in ('cached','loading'):
             if event.phase=='cached':self.bar.pack_forget()
-            self.text.set(f'Whisper {event.model} — model hazırlanıyor')
+            self.text.set(f'{label} — model hazırlanıyor')
         elif event.phase=='ready':
-            self.text.set(f'Whisper {event.model} hazır')
+            self.text.set(f'{label} hazır')
         elif event.phase=='error':
             self.bar.coords(self.fill,0,0,0,12)
             self.bar.configure(background='#fbe9e7')
-            self.text.set(f'Whisper {event.model} — indirme/yükleme tamamlanamadı')
+            self.text.set(f'{label} — indirme/yükleme tamamlanamadı')
         else:
             if not self.bar.winfo_manager():self.bar.pack(anchor='w',pady=(3,0))
             self.bar.coords(self.fill,0,0,0,12)
-            self.text.set(f'Whisper {event.model} — indirme bilgisi alınıyor')
+            self.text.set(f'{label} — indirme bilgisi alınıyor')
 
     def reset(self):
         self.bar.configure(background='#e8eee9')

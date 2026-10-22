@@ -14,7 +14,7 @@ class UITests(unittest.TestCase):
         try:self.root=tk.Tk()
         except tk.TclError as error:self.skipTest(str(error))
         self.root.withdraw()
-        with patch('ui.main_window.load_settings',return_value=Settings()):
+        with patch('ui.main_window.load_settings',return_value=Settings(structure_dictation=False)):
             self.app=AnamnezApp(self.root)
         self.root.update()
 

@@ -29,11 +29,21 @@ class NotePanel:
         self.editor=tk.Text(frame,wrap='word',height=6,undo=True)
         self.editor.pack(fill='both',expand=True)
         self.editor.bind('<<Modified>>',self._edited)
+        self.selection_details=()
+        self.details_window=None
+        self.review_frame=ttk.Frame(frame)
+        ttk.Label(self.review_frame,text='İnceleme bekliyor — bu bölümler hasta alanlarına otomatik eklenmedi:').pack(anchor='w')
+        self.review_text=tk.Text(self.review_frame,height=3,wrap='word',state='disabled')
+        self.review_text.pack(fill='x')
+        ttk.Button(self.review_frame,text='İnceledim; gerekli bilgiyi son metinde düzenledim',command=self.resolve_review).pack(anchor='w')
         buttons=ttk.Frame(frame);buttons.pack(fill='x',pady=6)
+        self.action_row=buttons
         self.approve_button=ttk.Button(buttons,text='3. Onayla ve aktar (şimdilik panoya)',command=self.complete,state='disabled')
         self.approve_button.pack(side='left')
         self.recopy_button=ttk.Button(buttons,text='Yeniden kopyala',command=self.recopy,state='disabled')
         self.recopy_button.pack(side='left',padx=8)
+        self.details_button=ttk.Button(buttons,text='Ayıklama ayrıntıları',command=self.show_selection_details,state='disabled')
+        self.details_button.pack(side='left',padx=6)
         self.state=tk.StringVar(value='Yeni görüşme. Onaylanmış metin yok.')
         ttk.Label(frame,textvariable=self.state,wraplength=940).pack(anchor='w')
         ttk.Label(frame,text='Miamed’e yapıştırılacak metin — tarih ve saat onay anında eklenir:').pack(anchor='w',pady=(6,0))
@@ -49,10 +59,42 @@ class NotePanel:
     def update_mode_notice(self):
         self.mode_notice.set('TEST MODU AÇIK — ham metin test kaydına yazılabilir; yalnızca sentetik/izinli veri kullanın.'
                              if self.app.settings.test_mode else 'Üretim modu: yalnızca onayladığınız son anamnez kaydedilir.')
+        if not self.app.settings.structure_dictation:
+            self.mode_notice.set(self.mode_notice.get()+' AI ayıklama kapalı: konuşma elle düzenlenmelidir.')
+
+    def set_selection_details(self,waiting,excluded):
+        self.selection_details=tuple(waiting)+tuple(excluded)
+        self.details_button.configure(state='normal' if self.selection_details else 'disabled')
+        self.review_text.configure(state='normal');self.review_text.delete('1.0','end')
+        self.review_text.insert('1.0','\n\n'.join(waiting));self.review_text.configure(state='disabled')
+        if waiting:self.review_frame.pack(fill='x',before=self.action_row,pady=4)
+        else:self.review_frame.pack_forget()
+
+    def resolve_review(self):
+        if self.app._processing_dictation:return
+        self.app._review_pending=False
+        self.review_frame.pack_forget()
+        self._source=self.sources()
+        self.invalidate('İnceleme tamamlandı. Son metni onaylayabilirsiniz.')
+
+    def show_selection_details(self):
+        if self.details_window is not None and self.details_window.winfo_exists():self.details_window.lift();return
+        self.details_window=tk.Toplevel(self.app.root);self.details_window.title('Anamneze otomatik eklenmeyen konuşmalar')
+        text=tk.Text(self.details_window,wrap='word',width=85,height=20)
+        text.pack(fill='both',expand=True);text.insert('1.0','\n\n'.join(self.selection_details));text.configure(state='disabled')
+
+    def clear_selection_details(self):
+        self.selection_details=()
+        self.review_text.configure(state='normal');self.review_text.delete('1.0','end');self.review_text.configure(state='disabled')
+        self.review_frame.pack_forget();self.details_button.configure(state='disabled')
+        if self.details_window is not None:
+            try:self.details_window.destroy()
+            except tk.TclError:pass
+            self.details_window=None
 
     def update_actions(self):
         """Third action is usable only with complete, current, nonempty input."""
-        ready=(not self.app._processing_dictation and self.app._recording_stop is None
+        ready=(not self.app._processing_dictation and not self.app._review_pending and self.app._recording_stop is None
                and self.sources()==self._source and bool(self.body().strip()))
         self.approve_button.configure(state='normal' if ready else 'disabled')
 
@@ -108,6 +150,9 @@ class NotePanel:
 
     def prepare(self):
         """Build deterministically, preserving clinician edits unless discarded."""
+        transcript=self.app.dictation_text.get('1.0','end-1c').strip()
+        if self.app.settings.structure_dictation and transcript and transcript!=self.app._dictation_applied:
+            return self.app._structure_manual_dictation(transcript)
         if self.edited and self.body() and not messagebox.askyesno('Taslağı yenile',
                 'Düzenlediğiniz taslak, mevcut dikte ve alanlardan yeniden hazırlanacak. Devam edilsin mi?'):
             return False
@@ -119,7 +164,7 @@ class NotePanel:
 
     def complete(self):
         """One explicit approval stamps and copies exactly the displayed text."""
-        if self.app._recording_stop is not None or self.app._processing_dictation:
+        if self.app._recording_stop is not None or self.app._processing_dictation or self.app._review_pending:
             self.state.set('Kayıt veya transkripsiyon sürüyor. Anamnezi tamamlamadan önce bitmesini bekleyin.')
             return False
         if self.editor.edit_modified():self._edited()
@@ -176,6 +221,7 @@ class NotePanel:
 
     def current_approval(self):
         """Never save stale approval after an unprocessed edit event."""
+        if self.app._review_pending:return False
         if self.editor.edit_modified():self._edited()
         if self.sources()!=self._source:self.source_changed()
         return self.approved is not None and self.body()==self.approved.body
