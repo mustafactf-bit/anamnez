@@ -46,7 +46,7 @@ def run_dictation(whisper, engine, settings, model_size, stop_event, on_started,
             except Exception:
                 structure_error='Yerel AI anamnezi güvenilir biçimde ayıklayamadı. Dikte ikincil sekmede tutuldu; son metni elle düzenleyip incelemeyi tamamlayın.'
             finally:
-                if settings.low_memory:engine.unload()
+                engine.unload()
         return ProcessedDictation(correction,overflow,limit,
                                   transcript if settings.test_mode else '',extraction,structure_error)
     finally:

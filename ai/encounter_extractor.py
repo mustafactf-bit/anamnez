@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from config import FIELDS
 from ai.llm_engine import LLMError
 
-CLINICAL=re.compile(r'\d|\byok\b|değil|inkar|redd|ateş|ağrı|agrı|öksür|nefes|bulant|kusm|ishal|kabız|kanama|alerji|tansiyon|nabız|diyabet|hipertans|ilaç|ilac|\bmg\b|hba1c|tsh|anne|baba|kardeş',re.I)
+CLINICAL=re.compile(r'\d{2,3}/\d{2,3}|\d+\s*(?:mg|ml|kg|cm|mmhg|yaş)|^\s*(?:yok|hayır|değil)[.!]?\s*$|ateş|ağrı|agrı|öksür|nefes|bulant|kusm|ishal|kabız|kanama|alerji|tansiyon|nabız|diyabet|hipertans|ilaç|ilac|hba1c|tsh|anne|baba|kardeş|sigara|alkol|ameliyat|gebelik|menopoz|uyku|iştah|kilo',re.I)
 OTHER_SPEAKER=re.compile(r'^\s*(?:öğrenci|ogrenci|ziyaretçi|başka hasta|komşu)\s*:',re.I)
 UNCERTAIN=re.compile(r'\bbirinin\b|başka biri|varsayalım|diyelim ki|örnek vaka|diyorlar|talimatları|ignore previous|system prompt',re.I)
 FAMILY={'soygecmis_anne','soygecmis_baba','soygecmis_kardes'}

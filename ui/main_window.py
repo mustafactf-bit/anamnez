@@ -281,7 +281,7 @@ class AnamnezApp:
             except Exception:
                 return ProcessedDictation(CorrectionResult(text),structure_error='Yerel AI ayıklaması tamamlanamadı; metni inceleyin.',existing_source=True)
             finally:
-                if self.settings.low_memory:self.engine.unload()
+                self.engine.unload()
         return self.bridge.start(work,self._microphone_transcription_finished,self._microphone_error)
 
     def _record_and_transcribe(self, model_size, stop_event):

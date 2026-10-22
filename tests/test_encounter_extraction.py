@@ -53,6 +53,11 @@ class EvidenceTests(unittest.TestCase):
         fields,waiting,_=validate_selection([source],[{'id':0,'action':'include','subject':'patient','field':'sikayet','quote':source}],[0])
         self.assertFalse(fields);self.assertTrue(waiting)
 
+    def test_nonclinical_logistics_number_does_not_become_patient_fact(self):
+        source='Sınav yarın saat 10 olacak.'
+        fields,waiting,excluded=validate_selection([source],[{'id':0,'action':'exclude','subject':'other','field':None,'quote':''}],[0])
+        self.assertFalse(fields);self.assertFalse(waiting);self.assertEqual(excluded,[source])
+
 class StructuredFlowTests(unittest.TestCase):
     setUp=legacy.ThreeClickTests.setUp
     tearDown=legacy.ThreeClickTests.tearDown
@@ -102,3 +107,24 @@ class StructuredFlowTests(unittest.TestCase):
     def test_logo_and_window_icon_are_real_assets(self):
         self.assertEqual(self.app.logo.width(),96)
         self.assertEqual(self.app.window_icon.width(),64)
+
+    def test_first_setup_decline_does_not_start_recording(self):
+        self.app.settings.structure_dictation=True;self.app.settings.model_path=''
+        with tempfile.TemporaryDirectory() as directory,patch('ai.model_setup.default_model_path',return_value=Path(directory)/'missing.gguf'),patch('ui.main_window.messagebox.askyesno',return_value=False):
+            self.app._toggle_microphone_recording()
+        self.assertIsNone(self.app._recording_stop)
+        self.app.speech_engine.load.assert_not_called()
+
+    def test_invalid_ai_preserves_old_draft_but_cannot_approve_it_as_new(self):
+        self.enable();self.app.note_panel._set_body('Hekimin mevcut notu.')
+        self.app.engine.generate_json.return_value={'items':[]}
+        with patch('ui.main_window.record_audio',side_effect=self.recorder):self.start_and_stop()
+        self.assertEqual(self.app.note_panel.body(),'Hekimin mevcut notu.')
+        self.assertTrue(self.app._review_pending);self.assertFalse(self.app.note_panel.complete())
+
+    def test_manual_transcript_uses_same_ai_instead_of_copying_everything(self):
+        self.enable();self.app.dictation_text.insert('1.0',TEXT);self.root.update()
+        self.assertTrue(self.app.note_panel.prepare());self.pump()
+        self.assertIn('120/80',self.app.note_panel.body())
+        self.assertNotIn('ders',self.app.note_panel.body())
+        self.assertEqual(self.app.dictation_text.get('1.0','end-1c'),TEXT)

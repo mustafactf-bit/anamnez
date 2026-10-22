@@ -38,6 +38,14 @@ jobs:
           if ($process.ExitCode -ne 0 -or !(Test-Path $report)) { throw 'Full model smoke failed' }
           $data = Get-Content $report -Raw | ConvertFrom-Json
           if (!$data.model_load -or !$data.silence_transcription) { throw 'Actual model inference failed' }
+      - name: Actual local clinical model extraction from EXE
+        timeout-minutes: 20
+        shell: pwsh
+        run: |
+          $report = Join-Path $env:RUNNER_TEMP 'clinical-smoke.json'
+          $process = Start-Process dist/AnamnezAsistani/AnamnezAsistani.exe -ArgumentList @('--clinical-smoke', $report) -WindowStyle Hidden -PassThru -Wait
+          if (Test-Path $report) { Get-Content $report }
+          if ($process.ExitCode -ne 0 -or !(Test-Path $report)) { throw 'Local clinical model smoke failed' }
       - uses: actions/upload-artifact@v4
         with:
           name: Anamnez-alpha1.3-Windows

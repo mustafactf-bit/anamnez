@@ -7,6 +7,11 @@ from pathlib import Path
 from ui.main_window import AnamnezApp
 
 def main():
+    if '--clinical-smoke' in sys.argv:
+        from ai.clinical_smoke import run
+        target=Path(sys.argv[sys.argv.index('--clinical-smoke')+1])
+        target.write_text(json.dumps(run()),encoding='utf-8')
+        return
     if '--model-smoke' in sys.argv:
         import traceback
         from speech.whisper_engine import WhisperEngine
@@ -28,8 +33,9 @@ def main():
     root = tk.Tk()
     if '--package-smoke' in sys.argv:
         root.withdraw()
-    AnamnezApp(root)
+    app = AnamnezApp(root)
     if '--package-smoke' in sys.argv:
+        assert app.logo.width() == 96
         import faster_whisper
         import ctranslate2
         import sounddevice
