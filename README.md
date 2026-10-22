@@ -1,4 +1,10 @@
-# Anamnez Asistanı V2-alpha1.2.2
+# Anamnez Asistanı V2-alpha1.3
+
+Sağlanan logo uygulama ve Windows simgelerine eklendi. Yerel AI artık
+konuşmadan hasta bilgilerini seçip anamnez alanlarına yerleştirir; ilgisiz
+sohbet son nota girmez. Belirsiz veya çelişkili bilgi hekim incelemesine ayrılır.
+İlk kullanımda yaklaşık 1,28 GB yerel model kurulumu sunulur.
+[Alpha1.3 ayrıntıları ve sınırları](docs/ALPHA1_3.md).
 
 Alpha1.2.2 ilk model indirmesini 4 MiB aralık istekleri, 128 KiB ilerleme
 okumaları, devam desteği ve model ağırlığı SHA-256 doğrulamasıyla güçlendirir.
@@ -19,7 +25,7 @@ Mevcut VBS başlatıcıları ve `anamnez_asistani.py` aynı V2 uygulamasını a�
 
 Alpha1.2 Windows x64 kurulum paketi Python, mikrofon, faster-whisper ve CPU
 llama.cpp motorunu içerir; Python ayrıca kurulmaz. Whisper ağırlıkları ilk
-kullanımda indirilir; GGUF ağırlığı Ayarlar'dan seçilir. Model dosyaları kurulum
+kullanımda indirilir; GGUF ağırlığı Ayarlar'dan indirilir veya seçilir. Model dosyaları kurulum
 paketinde değildir. [Sürüm indirmeleri](https://github.com/mustafactf-bit/anamnez/releases).
 
 Kurulum yönetici istemeden kullanıcı hesabına yapılır. Ayarlar
