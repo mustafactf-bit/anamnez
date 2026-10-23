@@ -19,7 +19,7 @@ mikrofon veya model indirmesi başlatmaz; mevcut taslağı değiştirmez. Otomat
 gösterim tercihi yalnız bir boolean içeren ui-preferences.json dosyasında kalır;
 ayarlar/hasta kayıtlarından ayrıdır. Paket testleri ilk kullanım turunu açmaz.
 
-123 yerel test başarılı: önceki 115 regresyona ek olarak hareketli bekleme,
+124 yerel test başarılı: önceki 115 regresyona ek olarak hareketli bekleme,
 geçen süre/aşama, tekrar başlatmanın engellenmesi, başarı/hata/inceleme ayrımı,
 gerçek indirme baytları ve hash engeli, tur atlama/hatırlama/yeniden açma ve
 taslak/kayıt güvenliği test edildi. Klinik motor ve üç adımlı normal akış korunur.

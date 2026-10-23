@@ -176,7 +176,8 @@ class AnamnezApp:
     def _finish_feedback(self,error):
         for button,state in self._button_states:button.configure(state=state)
         self._button_states=[]
-        self.activity.finish(error,self._review_pending)
+        handled_failure=any(word in self.status.get().lower() for word in ('kaydedilemedi','uygulanamadı','indirilemedi'))
+        self.activity.finish(error or (handled_failure and not self._review_pending),self._review_pending)
 
     def _open_guide(self):
         guide=Path(__file__).resolve().parents[1]/'assets'/'kullanim-kilavuzu.html'
@@ -317,6 +318,8 @@ class AnamnezApp:
                 self.status.set('Model indirildi; ayarlar kaydedilemedi. Ayarlar’dan dosyayı seçin.');return
             self.engine=GGUFEngine(self.settings)
             if hasattr(self,'settings_values'):self.settings_values['model_path'].set(path)
+            from speech.model_download import ModelProgress
+            self._model_progress(ModelProgress('ready','Yerel AI — Qwen3 1.7B'))
             self.status.set('Yerel AI hazır. Dikteyi başlatabilirsiniz.')
         self.bridge.start(lambda:install_model(progress),done,
             self._clinical_model_install_failed)

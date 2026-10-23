@@ -102,4 +102,15 @@ class FeedbackTests(unittest.TestCase):
         panel.downloaded(Path('synthetic.exe'))
         self.assertIn('%100',panel.progress_text.get())
 
+    def test_model_setup_ready_and_settings_failure_are_distinct(self):
+        with patch('ai.model_setup.install_model',return_value='synthetic.gguf'),patch('ui.main_window.save_settings'):
+            self.app._install_clinical_model();self.pump()
+        self.assertIn('hazır',self.app.model_progress.text.get())
+        self.assertNotIn('hazırlanıyor',self.app.model_progress.text.get())
+        self.assertEqual(self.app.activity.heading.get(),'TAMAMLANDI')
+        with patch('ai.model_setup.install_model',return_value='synthetic.gguf'),patch('ui.main_window.save_settings',side_effect=OSError()):
+            self.app._install_clinical_model();self.pump()
+        self.assertEqual(self.app.activity.heading.get(),'TAMAMLANAMADI')
+        self.assertFalse(self.app.activity.bar.winfo_manager())
+
 if __name__=='__main__':unittest.main()
