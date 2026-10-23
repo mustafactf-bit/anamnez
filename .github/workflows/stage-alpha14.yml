@@ -1,6 +1,9 @@
 name: Stage verified Alpha1.4 installer
 on:
   workflow_dispatch:
+  push:
+    branches: [codex/unified-v2-alpha]
+    paths: ['.github/workflows/stage-alpha14.yml']
 permissions:
   actions: read
   contents: write
