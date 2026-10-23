@@ -70,10 +70,9 @@ class Onboarding:
 
     def close(self):
         if self.window is None:return
-        if self.remember.get():
-            try:
-                self.path.parent.mkdir(parents=True,exist_ok=True)
-                save_patient(str(self.path),{'intro_v1_seen':True})
-            except OSError:self.app.status.set('Tur tercihi kaydedilemedi; sonraki açılışta yeniden görünebilir.')
+        try:
+            self.path.parent.mkdir(parents=True,exist_ok=True)
+            save_patient(str(self.path),{'intro_v1_seen':bool(self.remember.get())})
+        except OSError:self.app.status.set('Tur tercihi kaydedilemedi; sonraki açılışta yeniden görünebilir.')
         self.window.destroy();self.window=None
         self.app.tabs.select(self.app.output_tab)

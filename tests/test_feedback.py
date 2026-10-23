@@ -77,7 +77,9 @@ class FeedbackTests(unittest.TestCase):
         self.tour.close();self.assertTrue(self.tour.seen())
         self.assertEqual(json.loads(self.tour.path.read_text()),{'intro_v1_seen':True})
         self.tour.first_run();self.assertIsNone(self.tour.window)
-        self.tour.open();self.assertIsNotNone(self.tour.window);self.tour.close()
+        self.tour.open();self.assertIsNotNone(self.tour.window)
+        self.tour.remember.set(False);self.tour.close();self.assertFalse(self.tour.seen())
+        self.tour.first_run();self.assertIsNotNone(self.tour.window);self.tour.close()
         self.assertFalse(self.app.bridge.busy);self.assertIsNone(self.app._recording_stop)
 
     def test_skip_without_remember_and_complete(self):
