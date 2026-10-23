@@ -1,0 +1,33 @@
+name: Stage verified Alpha1.4 installer
+on:
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: write
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify immutable successful build and draft target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          test "$(gh run view 39940450392 --json conclusion --jq .conclusion)" = success
+          test "$(gh run view 39940450392 --json headSha --jq .headSha)" = 4544259b8a396d3d7cb0f4bab31cefc5528f3849
+          test "$(gh release view v2.0.2-alpha.1.4 --json isDraft --jq .isDraft)" = true
+          test "$(gh release view v2.0.2-alpha.1.4 --json targetCommitish --jq .targetCommitish)" = 4544259b8a396d3d7cb0f4bab31cefc5528f3849
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 39940450392
+          name: Anamnez-alpha1.4-Windows
+          path: installer
+      - name: Record hash and upload installer only to draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          sha256sum installer/Anamnez-Asistani-Kurulum.exe
+          stat --printf='INSTALLER_BYTES=%s\n' installer/Anamnez-Asistani-Kurulum.exe
+          gh release upload v2.0.2-alpha.1.4 installer/Anamnez-Asistani-Kurulum.exe
