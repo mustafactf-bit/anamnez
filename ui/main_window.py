@@ -21,7 +21,7 @@ from storage.record_policy import prepare_record, without_legacy_raw
 from speech.dictation_pipeline import run_dictation
 from note_workflow import build_note_body
 from settings import load_settings, save_settings, Settings
-from ai.llm_engine import GGUFEngine
+from ai.llm_engine import GGUFEngine, LLMError
 from literature.pubmed_client import PubMedClient
 from speech.whisper_engine import WhisperEngine
 from speech.errors import SpeechModelError
@@ -44,7 +44,7 @@ class AnamnezApp:
     def __init__(self, root):
         self.root = root
         apply_design(root)
-        self.root.title("Anamnez Asistanı V2-alpha1.5")
+        self.root.title("Anamnez Asistanı V2-alpha1.6")
         self.root.geometry(f"{min(1180,root.winfo_screenwidth()-60)}x{min(850,root.winfo_screenheight()-90)}")
         self.root.minsize(960, 640)
         self.values = dict(INITIAL_DATA)
@@ -330,7 +330,7 @@ class AnamnezApp:
         self.status.set('Yerel AI modeli indirilemedi. Bağlantı/disk alanını kontrol edip Ayarlar’dan yeniden deneyin.')
 
     def _structure_manual_dictation(self,text):
-        if self.bridge.busy or self._review_pending:return False
+        if self.bridge.busy:return False
         if not self._clinical_model_ready():return False
         self._speech_context=(self.note_panel.sources(),self.note_panel.body())
         self._processing_dictation=True;self.note_panel.invalidate('Yerel AI anamnezi ayıklıyor...')
@@ -339,11 +339,13 @@ class AnamnezApp:
                 if self.settings.low_memory:self.speech_engine.unload()
                 extraction=extract_encounter(self.engine,text)
                 return ProcessedDictation(CorrectionResult(text),extraction=extraction,existing_source=True)
+            except LLMError as error:
+                return ProcessedDictation(CorrectionResult(text),structure_error=str(error),existing_source=True)
             except Exception:
                 return ProcessedDictation(CorrectionResult(text),structure_error='Yerel AI ayıklaması tamamlanamadı; metni inceleyin.',existing_source=True)
             finally:
                 self.engine.unload()
-        return self.bridge.start(work,self._microphone_transcription_finished,self._microphone_error)
+        return self.bridge.start(work,self._microphone_transcription_finished,self._microphone_error,label='Yerel AI anamnezi ayıklıyor...')
 
     def _record_and_transcribe(self, model_size, stop_event):
         return run_dictation(self.speech_engine, self.engine, self.settings,
@@ -415,8 +417,14 @@ class AnamnezApp:
                 self.note_panel.set_selection_details(waiting,())
             self._review_pending=bool(waiting)
             self.note_panel.update_actions()
-            self.note_panel.state.set('Yerel AI ilgili kaynak bilgilerini anamnez alanlarına yerleştirdi. '
-                +('İnceleme bekleyen bölümleri değerlendirin.' if waiting else 'Alanları ve son metni kontrol edip onaylayın.'))
+            if result.extraction is None:
+                self.note_panel.state.set('Ayıklama tamamlanamadı. Aşağıdaki konuşma yalnızca inceleme içindir; son anamneze eklenmedi. Taslağı elle düzenleyebilir veya yeniden deneyebilirsiniz.')
+            elif accepted:
+                self.note_panel.state.set('Doğrulanan kaynak ifadeler alanlara yerleştirildi. '
+                    +('İnceleme bekleyen bölümleri değerlendirin.' if waiting else 'Alanları ve son metni kontrol edip onaylayın.'))
+            else:
+                self.note_panel.state.set('Yeni bilgi otomatik eklenmedi. İnceleme bekleyen ifadeleri ve mevcut taslağı kontrol edin.' if waiting
+                    else 'Anamneze eklenecek yeni hasta bilgisi bulunamadı.')
             self.status.set('Anamnez ayıklandı; ilgisiz konuşmalar son metne eklenmedi.' if result.extraction else 'Yerel AI tamamlanamadı; ham konuşma otomatik anamneze eklenmedi.')
             self.tabs.select(self.output_tab)
             return

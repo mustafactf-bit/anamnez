@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from ai.dictation_corrector import correct_transcript, CorrectionResult
 from speech.audio_recorder import record_audio
 from ai.encounter_extractor import extract_encounter, EncounterExtraction
+from ai.llm_engine import LLMError
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,8 @@ def run_dictation(whisper, engine, settings, model_size, stop_event, on_started,
             try:
                 if not settings.model_path:raise ValueError('missing model')
                 extraction=extract_encounter(engine,correction.text)
+            except LLMError as error:
+                structure_error=str(error)
             except Exception:
                 structure_error='Yerel AI anamnezi güvenilir biçimde ayıklayamadı. Dikte ikincil sekmede tutuldu; son metni elle düzenleyip incelemeyi tamamlayın.'
             finally:

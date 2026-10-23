@@ -188,7 +188,10 @@ class NotePanel:
 
     def complete(self):
         """One explicit approval stamps and copies exactly the displayed text."""
-        if self.app._recording_stop is not None or self.app._processing_dictation or self.app._review_pending:
+        if self.app._review_pending:
+            self.state.set('İnceleme bekleyen ifadeler var. Son metni düzenleyip incelemeyi tamamlayın.')
+            return False
+        if self.app._recording_stop is not None or self.app._processing_dictation:
             self.state.set('Kayıt veya transkripsiyon sürüyor. Anamnezi tamamlamadan önce bitmesini bekleyin.')
             return False
         if self.editor.edit_modified():self._edited()

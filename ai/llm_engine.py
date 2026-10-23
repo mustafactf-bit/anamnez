@@ -64,13 +64,19 @@ class GGUFEngine:
                     {'role':'user','content':prompt}], temperature=0,
                     max_tokens=self.settings.max_tokens, **kwargs)
                 self.last_usage = answer.get('usage', {})
+                if answer['choices'][0].get('finish_reason') == 'length':
+                    raise LLMError('Yerel AI yanıt sınırına ulaştı; daha kısa bir metinle yeniden deneyin.')
                 return answer['choices'][0]['message']['content']
+            except LLMError:
+                raise
             except Exception as error:
                 raise LLMError('Model yanıtı alınamadı. Bağlam boyutu, RAM ve model uyumluluğunu kontrol edin.') from error
 
     def generate_json(self, prompt: str, schema=None):
-        result = parse_json(self.generate(prompt, response_format={'type':'json_object'}))
-        return schema(result) if schema else result
+        response_format={'type':'json_object'}
+        if isinstance(schema,dict):response_format['schema']=schema
+        result = parse_json(self.generate(prompt, response_format=response_format))
+        return schema(result) if callable(schema) else result
 
     def unload(self) -> None:
         with self._lock:

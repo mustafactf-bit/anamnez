@@ -18,6 +18,22 @@ CASE={'age':58,'sex':'male','chief_complaint':'halsizlik','duration':'3 ay',
 TRANSCRIPT='58 yaşında erkek hasta. Üç aydır halsizlik. On yıldır hipertansiyonu var. Amlodipin kullanıyor. Potasyum 2.9.'
 
 class PipelineTests(unittest.TestCase):
+    def test_truncated_generation_has_actionable_safe_error(self):
+        engine=GGUFEngine(Settings());engine._model=Mock()
+        engine._model.create_chat_completion.return_value={'choices':[
+            {'finish_reason':'length','message':{'content':'{"items":['}}],'usage':{'completion_tokens':1200}}
+        with self.assertRaisesRegex(LLMError,'yanıt sınırına'):
+            engine.generate_json('synthetic')
+        self.assertEqual(engine.last_usage['completion_tokens'],1200)
+
+    def test_json_schema_is_forwarded_to_native_decoder(self):
+        engine=GGUFEngine(Settings());engine._model=Mock()
+        engine._model.create_chat_completion.return_value={'choices':[
+            {'finish_reason':'stop','message':{'content':'{"items":[]}'}}]}
+        schema={'type':'object','properties':{'items':{'type':'array'}}}
+        self.assertEqual(engine.generate_json('synthetic',schema=schema),{'items':[]})
+        self.assertEqual(engine._model.create_chat_completion.call_args.kwargs['response_format']['schema'],schema)
+
     def test_extraction_contract(self):
         engine=Mock();engine.generate_json.return_value=CASE
         self.assertEqual(extract_anamnesis(engine,TRANSCRIPT),CASE)

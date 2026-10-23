@@ -10,7 +10,12 @@ def main():
     if '--clinical-smoke' in sys.argv:
         from ai.clinical_smoke import run
         target=Path(sys.argv[sys.argv.index('--clinical-smoke')+1])
-        target.write_text(json.dumps(run()),encoding='utf-8')
+        try:
+            result=run()
+        except Exception as error:
+            target.write_text(json.dumps({'local_gguf':False,'error_type':type(error).__name__}),encoding='utf-8')
+            raise SystemExit(1)
+        target.write_text(json.dumps(result),encoding='utf-8')
         return
     if '--model-smoke' in sys.argv:
         import traceback

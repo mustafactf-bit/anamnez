@@ -1,4 +1,9 @@
-# Anamnez Asistanı V2-alpha1.5
+# Anamnez Asistanı V2-alpha1.6
+
+Yerel AI, cümleleri yeniden yazmak yerine kaynak numaralarını ve alanlarını seçer.
+Soru-cevap görüşmelerinde kaynak ifadelerin değişmesi nedeniyle tüm ayıklamanın
+durması giderildi. Hata halinde başarı mesajı gösterilmez; doğrulanamayan metin
+inceleme bölümünde kalır. [Alpha1.6 sürüm notları](docs/ALPHA1_6.md).
 
 Her sekmede görünür işlem aşaması, hareketli gösterge, geçen süre ve net sonuç
 durumu bulunur. Model/güncelleme indirmeleri gerçek yüzde gösterir; diğer işlerde
