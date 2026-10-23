@@ -1,7 +1,7 @@
-#define AppVersion "2.0.2-alpha.1.3"
+#define AppVersion "2.0.2-alpha.1.4"
 [Setup]
 AppId={{4A4C3DF0-16C5-4E05-865A-A734367F4CF1}
-AppName=Anamnez Asistani V2-alpha1.3
+AppName=Anamnez Asistani V2-alpha1.4
 AppVersion={#AppVersion}
 AppPublisher=Anamnez Asistani
 SetupIconFile=..\..\assets\app.ico

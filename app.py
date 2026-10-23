@@ -36,6 +36,7 @@ def main():
     app = AnamnezApp(root)
     if '--package-smoke' in sys.argv:
         assert app.logo.width() == 96
+        assert (Path(__file__).resolve().parent/'assets'/'kullanim-kilavuzu.html').is_file()
         import faster_whisper
         import ctranslate2
         import sounddevice

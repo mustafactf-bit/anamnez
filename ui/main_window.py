@@ -35,13 +35,15 @@ from ui.model_progress import ModelDownloadProgress
 from ai.encounter_extractor import extract_encounter
 from ai.dictation_corrector import CorrectionResult
 from speech.dictation_pipeline import ProcessedDictation
+from ui.design import apply_design, wheel_scroll
 
 class AnamnezApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Anamnez Asistanı V2-alpha1.3")
-        self.root.geometry("1050x760")
-        self.root.minsize(820, 600)
+        apply_design(root)
+        self.root.title("Anamnez Asistanı V2-alpha1.4")
+        self.root.geometry(f"{min(1180,root.winfo_screenwidth()-60)}x{min(850,root.winfo_screenheight()-90)}")
+        self.root.minsize(960, 640)
         self.values = dict(INITIAL_DATA)
         self.entries = {}
         self.entry_variables = {}
@@ -79,12 +81,14 @@ class AnamnezApp:
         self.root.iconphoto(True,self.window_icon)
         ttk.Label(header,image=self.logo).pack(side='left',padx=(0,12))
         header_text=ttk.Frame(header);header_text.pack(side='left',fill='x',expand=True)
-        ttk.Label(header_text, text="Anamnez Asistanı V2-alpha1.3", font=("Segoe UI", 16, "bold")).pack(anchor="w")
+        ttk.Label(header_text, text="Anamnez Asistanı",style='Title.TLabel').pack(anchor="w")
         ttk.Label(
             header_text,
-            text="Dikte için Türkçe Whisper modeli yerel olarak çalışır. Dikte ve hasta bilgileri dış servislere gönderilmez; yalnızca genel literatür aramaları PubMed'e iletilir.",
-            wraplength=850,
+            text="Konuşun. İnceleyin. Onaylayıp kopyalayın.",style='Subtitle.TLabel',
+            wraplength=650,
         ).pack(anchor="w", pady=(4, 0))
+        ttk.Label(header_text,text='Yerel dikte ve AI  •  Son karar hekimde',style='Badge.TLabel').pack(anchor='w',pady=(8,0))
+        ttk.Button(header,text='Kullanım kılavuzu  ·  F1',command=self._open_guide).pack(side='right',padx=(8,0))
 
         self.tabs = ttk.Notebook(self.root)
         self.tabs.pack(fill="both", expand=True, padx=10, pady=(0, 10))
@@ -95,7 +99,7 @@ class AnamnezApp:
         self.tabs.add(self.output_tab, text="Anamnez • Miamed")
         self.tabs.add(self.dictation_tab, text="Dikte metni")
         self.tabs.add(self.form_tab, text="Hasta bilgileri")
-        self.tabs.add(self.recommendations_tab, text="5 değerlendirme önerisi")
+        self.tabs.add(self.recommendations_tab, text="Değerlendirme")
         self._build_form()
         self._build_dictation()
         self._build_recommendations()
@@ -115,6 +119,7 @@ class AnamnezApp:
         settings_canvas.pack(side='left', fill='both', expand=True)
         settings_scroll.pack(side='right', fill='y')
         build_settings_tab(self, settings_container)
+        wheel_scroll(settings_canvas)
         update_frame = ttk.Frame(self.tabs,padding=16)
         self.tabs.add(update_frame,text='Güncelleme')
         self.updates = UpdatePanel(self,update_frame)
@@ -127,13 +132,36 @@ class AnamnezApp:
         self.model_progress=ModelDownloadProgress(footer)
         ttk.Label(footer, textvariable=self.status, anchor="w", padding=(12, 4),wraplength=700).pack(side='left',fill="x",expand=True)
         self.speech_engine.on_progress=lambda event:self.bridge.post(lambda:self.model_progress.update(event))
+        def focus_draft(_event=None):
+            self.tabs.select(self.output_tab);self.note_panel.editor.focus_set();return 'break'
+        def next_tab(_event=None):
+            self.tabs.select((self.tabs.index('current')+1)%len(self.tabs.tabs()));return 'break'
+        shortcuts={'<F1>':lambda _e:(self._open_guide(),'break')[-1],
+                   '<F6>':focus_draft,'<Control-Tab>':next_tab,
+                   '<Control-n>':lambda _e:(self._new_visit(),'break')[-1],
+                   '<Control-o>':lambda _e:(self._load_json(),'break')[-1]}
+        for key,command in shortcuts.items():self.root.bind(key,command)
+        def text_shortcuts(widget):
+            if isinstance(widget,tk.Text):
+                for key,command in shortcuts.items():widget.bind(key,command)
+                widget.bind('<Tab>',lambda e:(e.widget.tk_focusNext().focus_set(),'break')[-1])
+                widget.bind('<Shift-Tab>',lambda e:(e.widget.tk_focusPrev().focus_set(),'break')[-1])
+                widget.bind('<ISO_Left_Tab>',lambda e:(e.widget.tk_focusPrev().focus_set(),'break')[-1])
+            for child in widget.winfo_children():text_shortcuts(child)
+        text_shortcuts(self.root)
+
+    def _open_guide(self):
+        guide=Path(__file__).resolve().parents[1]/'assets'/'kullanim-kilavuzu.html'
+        if not webbrowser.open(guide.as_uri()):
+            messagebox.showinfo('Kullanım kılavuzu',f'Kılavuz dosyasını tarayıcınızda açın:\n{guide}')
 
     def _build_form(self):
         canvas = tk.Canvas(self.form_tab, highlightthickness=0)
         scrollbar = ttk.Scrollbar(self.form_tab, orient="vertical", command=canvas.yview)
         container = ttk.Frame(canvas, padding=8)
         container.bind("<Configure>", lambda _event: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=container, anchor="nw")
+        form_window=canvas.create_window((0, 0), window=container, anchor="nw")
+        canvas.bind('<Configure>',lambda event:canvas.itemconfigure(form_window,width=event.width))
         canvas.configure(yscrollcommand=scrollbar.set)
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
@@ -145,6 +173,7 @@ class AnamnezApp:
             entry.grid(row=row, column=1, sticky="ew", pady=4)
             self.entries[key] = entry
         container.columnconfigure(1, weight=1)
+        wheel_scroll(canvas)
         ttk.Button(container, text="Değişiklikleri uygula", command=self._read_form).grid(
             row=len(FIELDS), column=1, sticky="e", pady=10
         )

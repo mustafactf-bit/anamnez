@@ -1,4 +1,9 @@
-# Anamnez Asistanı V2-alpha1.3
+# Anamnez Asistanı V2-alpha1.4
+
+Hekim odaklı yeni arayüz: belirgin ana düğmeler, büyük düzenleme alanı,
+isteğe bağlı aktarım önizlemesi ve gruplandırılmış ayarlar.
+F1 ile çevrimdışı [kullanım kılavuzu](assets/kullanim-kilavuzu.html) açılır.
+[Alpha1.4 sürüm notları](docs/ALPHA1_4.md).
 
 Sağlanan logo uygulama ve Windows simgelerine eklendi. Yerel AI artık
 konuşmadan hasta bilgilerini seçip anamnez alanlarına yerleştirir; ilgisiz

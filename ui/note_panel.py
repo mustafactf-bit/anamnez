@@ -5,6 +5,7 @@ from tkinter import ttk, messagebox
 from config import FIELDS
 from note_workflow import build_note_body, approve_note
 from ui.clipboard import ClipboardError, normalize_lines
+from ui.design import text_area
 
 
 class NotePanel:
@@ -16,45 +17,64 @@ class NotePanel:
         self.edited=False
         self._source=self.sources()
         self.mode_notice=tk.StringVar()
-        ttk.Label(frame,textvariable=self.mode_notice,wraplength=940).pack(anchor='w')
+        ttk.Label(frame,textvariable=self.mode_notice,wraplength=1050,style='Subtitle.TLabel').pack(anchor='w',pady=(0,8))
         self.update_mode_notice()
-        ttk.Label(frame,text='1. Dikteyi başlat → 2. Dikteyi bitir → metin otomatik hazırlanır → 3. Onayla ve aktar.',wraplength=940).pack(anchor='w')
+        steps=ttk.Frame(frame);steps.pack(fill='x',pady=(0,10))
+        for label in ('01   KONUŞUN','02   BİTİRİN VE İNCELEYİN','03   ONAYLAYIP KOPYALAYIN'):
+            ttk.Label(steps,text=label,style='Badge.TLabel').pack(side='left',padx=(0,8))
         top=ttk.Frame(frame);top.pack(fill='x',pady=6)
-        self.record_button=ttk.Button(top,text='1. Dikteyi başlat',command=app._toggle_microphone_recording)
+        self.record_button=ttk.Button(top,text='1. Dikteyi başlat',style='Record.TButton',command=app._toggle_microphone_recording)
         self.record_button.pack(side='left')
         ttk.Button(top,text='Manuel alanlar',command=lambda:app.tabs.select(app.form_tab)).pack(side='left',padx=6)
-        ttk.Button(top,text='Dikte ve alanlardan taslak hazırla',command=self.prepare).pack(side='left')
+        ttk.Button(top,text='Taslağı yeniden hazırla',command=self.prepare).pack(side='left')
         ttk.Button(top,text='Yeni görüşme',command=app._new_visit).pack(side='right')
-        ttk.Label(frame,text='Hekim düzenlemesi — yalnızca doğruladığınız bilgileri bırakın:').pack(anchor='w')
-        self.editor=tk.Text(frame,wrap='word',height=6,undo=True)
-        self.editor.pack(fill='both',expand=True)
+        ttk.Label(frame,text='Anamnez taslağı',style='Section.TLabel').pack(anchor='w',pady=(8,2))
+        ttk.Label(frame,text='Hasta bilgilerini, ilaç dozlarını ve olumsuz ifadeleri kontrol edin. Metni burada düzenleyebilirsiniz.',style='Subtitle.TLabel').pack(anchor='w',pady=(0,8))
+        self.editor_frame,self.editor=text_area(frame,wrap='word',height=8,undo=True)
         self.editor.bind('<<Modified>>',self._edited)
         self.selection_details=()
         self.details_window=None
         self.review_frame=ttk.Frame(frame)
-        ttk.Label(self.review_frame,text='İnceleme bekliyor — bu bölümler hasta alanlarına otomatik eklenmedi:').pack(anchor='w')
+        ttk.Label(self.review_frame,text='İnceleme gerekli — bu ifadeler otomatik eklenmedi.',style='Notice.TLabel').pack(fill='x')
         self.review_text=tk.Text(self.review_frame,height=3,wrap='word',state='disabled')
         self.review_text.pack(fill='x')
         ttk.Button(self.review_frame,text='İnceledim; gerekli bilgiyi son metinde düzenledim',command=self.resolve_review).pack(anchor='w')
         buttons=ttk.Frame(frame);buttons.pack(fill='x',pady=6)
         self.action_row=buttons
-        self.approve_button=ttk.Button(buttons,text='3. Onayla ve aktar (şimdilik panoya)',command=self.complete,state='disabled')
+        self.approve_button=ttk.Button(buttons,text='3. Onayla ve kopyala',style='Primary.TButton',command=self.complete,state='disabled')
         self.approve_button.pack(side='left')
         self.recopy_button=ttk.Button(buttons,text='Yeniden kopyala',command=self.recopy,state='disabled')
         self.recopy_button.pack(side='left',padx=8)
         self.details_button=ttk.Button(buttons,text='Ayıklama ayrıntıları',command=self.show_selection_details,state='disabled')
         self.details_button.pack(side='left',padx=6)
         self.state=tk.StringVar(value='Yeni görüşme. Onaylanmış metin yok.')
-        ttk.Label(frame,textvariable=self.state,wraplength=940).pack(anchor='w')
-        ttk.Label(frame,text='Miamed’e yapıştırılacak metin — tarih ve saat onay anında eklenir:').pack(anchor='w',pady=(6,0))
-        self.preview=tk.Text(frame,wrap='word',height=6,state='disabled')
-        self.preview.pack(fill='both',expand=True)
+        state_label=ttk.Label(frame,textvariable=self.state,wraplength=900,style='Notice.TLabel')
+        state_label.pack(fill='x',pady=(0,6))
+        preview_row=ttk.Frame(frame);preview_row.pack(fill='x',pady=(2,4))
+        self.preview_toggle=ttk.Button(preview_row,text='Aktarım önizlemesini göster',command=self.toggle_preview)
+        self.preview_toggle.pack(side='left')
+        ttk.Label(preview_row,text='Miamed: doğru hasta → anamnezin sonu → Ctrl+V',style='Subtitle.TLabel').pack(side='right')
+        self.preview_frame,self.preview=text_area(frame,wrap='word',height=4,state='disabled')
         files=ttk.Frame(frame);files.pack(fill='x',pady=(6,0))
         ttk.Button(files,text='Metin kaydet',command=app._save_output).pack(side='left')
         ttk.Button(files,text='Görüşmeyi JSON kaydet',command=app._save_json).pack(side='left',padx=8)
         ttk.Button(files,text='JSON aç',command=app._load_json).pack(side='left')
+        self.files_row=files
+        # Reserve actions first; the editor takes remaining height on small displays.
+        for widget in (files,preview_row,state_label,buttons):widget.pack_forget()
+        for widget in (files,preview_row,state_label,buttons):
+            widget.pack(side='bottom',fill='x',pady=4)
+        self.editor_frame.pack(side='top',fill='both',expand=True)
         app.draft_text=self.editor
         app.output_text=self.preview
+
+    def toggle_preview(self):
+        if self.preview_frame.winfo_manager():
+            self.preview_frame.pack_forget()
+            self.preview_toggle.configure(text='Aktarım önizlemesini göster')
+        else:
+            self.preview_frame.pack(side='bottom',fill='x',after=self.files_row,pady=(0,6))
+            self.preview_toggle.configure(text='Aktarım önizlemesini gizle')
 
     def update_mode_notice(self):
         self.mode_notice.set('TEST MODU AÇIK — ham metin test kaydına yazılabilir; yalnızca sentetik/izinli veri kullanın.'
@@ -67,7 +87,7 @@ class NotePanel:
         self.details_button.configure(state='normal' if self.selection_details else 'disabled')
         self.review_text.configure(state='normal');self.review_text.delete('1.0','end')
         self.review_text.insert('1.0','\n\n'.join(waiting));self.review_text.configure(state='disabled')
-        if waiting:self.review_frame.pack(fill='x',before=self.action_row,pady=4)
+        if waiting:self.review_frame.pack(side='bottom',fill='x',after=self.action_row,pady=4)
         else:self.review_frame.pack_forget()
 
     def resolve_review(self):
