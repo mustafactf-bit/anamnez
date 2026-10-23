@@ -76,8 +76,8 @@ class AnamnezApp:
         header = ttk.Frame(self.root, padding=(12, 10))
         header.pack(fill="x")
         assets=Path(__file__).resolve().parents[1]/'assets'
-        self.logo=tk.PhotoImage(file=str(assets/'logo-header.png'))
-        self.window_icon=tk.PhotoImage(file=str(assets/'logo-icon.png'))
+        self.logo=tk.PhotoImage(master=self.root,file=str(assets/'logo-header.png'))
+        self.window_icon=tk.PhotoImage(master=self.root,file=str(assets/'logo-icon.png'))
         self.root.iconphoto(True,self.window_icon)
         ttk.Label(header,image=self.logo).pack(side='left',padx=(0,12))
         header_text=ttk.Frame(header);header_text.pack(side='left',fill='x',expand=True)
@@ -146,7 +146,8 @@ class AnamnezApp:
                 for key,command in shortcuts.items():widget.bind(key,command)
                 widget.bind('<Tab>',lambda e:(e.widget.tk_focusNext().focus_set(),'break')[-1])
                 widget.bind('<Shift-Tab>',lambda e:(e.widget.tk_focusPrev().focus_set(),'break')[-1])
-                widget.bind('<ISO_Left_Tab>',lambda e:(e.widget.tk_focusPrev().focus_set(),'break')[-1])
+                if self.root.tk.call('tk','windowingsystem')=='x11':
+                    widget.bind('<ISO_Left_Tab>',lambda e:(e.widget.tk_focusPrev().focus_set(),'break')[-1])
             for child in widget.winfo_children():text_shortcuts(child)
         text_shortcuts(self.root)
 
