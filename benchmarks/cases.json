@@ -1,0 +1,12 @@
+[
+  {
+    "id": "synthetic-hypertension",
+    "transcript": "58 yaşında erkek hasta. Üç aydır halsizlik tarifliyor. Hipertansiyonu var. Amlodipin kullanıyor. Potasyum 2.9 bulunmuş.",
+    "expected": {"age":58,"sex":"male","chief_complaint":"halsizlik","duration":"3 ay","history":["hipertansiyon"],"medications":["amlodipin"],"labs":[{"name":"potasyum","value":2.9,"unit":null}]}
+  },
+  {
+    "id": "synthetic-absence",
+    "transcript": "Hasta halsizlik nedeniyle başvurdu. Yaş ve cinsiyet belirtilmedi. İlaç bilgisi henüz alınmadı.",
+    "expected": {"age":null,"sex":null,"chief_complaint":"halsizlik","duration":null,"history":[],"medications":[],"labs":[]}
+  }
+]

@@ -1,0 +1,39 @@
+name: CPU compatibility tests
+on: [push, pull_request]
+jobs:
+  tests:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        python: ['3.10', '3.12']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install 'cryptography>=46,<51'
+      - name: Core and hidden Tk tests (Windows)
+        if: runner.os == 'Windows'
+        run: python -m unittest discover -s tests -v
+      - name: Core and hidden Tk tests (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a python -m unittest discover -s tests -v
+      - run: python -m compileall -q ai literature safety speech storage ui app.py settings.py
+  screencheck:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build read-only Windows diagnostic
+        shell: pwsh
+        run: |
+          $probeFolder = Join-Path $env:RUNNER_TEMP 'miamed-screencheck'
+          New-Item -ItemType Directory -Force -Path $probeFolder | Out-Null
+          ./tools/screencheck/build.ps1 -OutputPath (Join-Path $probeFolder 'Miamed-Ekran-Kontrol.exe')
+      - name: Synthetic UI Automation and report privacy tests
+        shell: pwsh
+        run: ./tools/screencheck/test.ps1 -HelperPath (Join-Path $env:RUNNER_TEMP 'miamed-screencheck/Miamed-Ekran-Kontrol.exe')
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Miamed-Ekran-Kontrol
+          path: ${{ runner.temp }}/miamed-screencheck/Miamed-Ekran-Kontrol.exe

@@ -1,0 +1,9 @@
+__pycache__/
+.venv/
+*.gguf
+*.log
+settings.json
+.venv-build/
+build/
+dist/
+*.spec
