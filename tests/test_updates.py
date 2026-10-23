@@ -61,6 +61,17 @@ class UpdateTests(unittest.TestCase):
                 self.assertFalse(list(Path(directory).glob('*.partial')))
                 self.assertEqual(path.read_bytes(),b'EXE!')
 
+    def test_download_progress_reports_actual_bytes_and_keeps_hash_gate(self):
+        events=[]
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(u.urllib.request,'urlopen',return_value=io.BytesIO(b'EXE!')):
+                path=u.download_update(u.Release(**self.data),directory,lambda done,total:events.append((done,total)))
+            self.assertEqual(events,[(0,4),(4,4)])
+            self.assertEqual(path.read_bytes(),b'EXE!')
+            with patch.object(u.urllib.request,'urlopen',return_value=io.BytesIO(b'FAIL')):
+                with self.assertRaises(u.UpdateError):u.download_update(u.Release(**self.data),directory,lambda *_:None)
+            self.assertEqual(path.read_bytes(),b'EXE!')
+
     def test_launch_rehash_rejects_tampered_exe(self):
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'setup.exe';path.write_bytes(b'FAIL')

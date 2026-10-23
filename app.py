@@ -45,9 +45,19 @@ def main():
         from config import VERSION
         get_vad_model()
         root.update()
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            app.onboarding.path=Path(directory)/'ui-preferences.json'
+            app.onboarding.first_run();root.update()
+            assert app.onboarding.window is not None
+            assert app._recording_stop is None and app.note_panel.approved is None
+            app.onboarding.close();assert app.onboarding.seen()
+        app.activity.begin('Paket arayüz testi')
+        assert app.activity.bar.winfo_manager()=='pack'
+        app.activity.finish();assert app.activity.heading.get()=='TAMAMLANDI'
         Path(sys.argv[sys.argv.index('--package-smoke')+1]).write_text(json.dumps(
             {'version':VERSION,'tk':True,'whisper':True,'vad':True,'llama_cpp':True,
-             'sounddevice':True}),encoding='utf-8')
+             'sounddevice':True,'activity':True,'onboarding':True}),encoding='utf-8')
         root.destroy()
         return
     root.mainloop()

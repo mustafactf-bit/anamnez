@@ -16,20 +16,29 @@ class UpdatePanel:
         ttk.Label(frame,textvariable=self.state,wraplength=820).pack(anchor='w',pady=8)
         self.button=ttk.Button(frame,text='Güncellemeleri kontrol et',command=self.action)
         self.button.pack(anchor='w')
+        self.progress=ttk.Progressbar(frame,mode='indeterminate',length=380)
+        self.progress_text=tk.StringVar(value='')
+        ttk.Label(frame,textvariable=self.progress_text).pack(anchor='w',pady=6)
         ttk.Label(frame,text='Kontrol yalnızca sürüm bilgisi alır. Görüşme metni gönderilmez. '
             'Kurulum siz başlatmadan çalışmaz. Önceki sürüm ve kullanıcı verileri korunur.',wraplength=820).pack(anchor='w',pady=8)
         if getattr(sys,'frozen',False) and '--package-smoke' not in sys.argv: app.root.after(2500,self.action)
 
     def task(self,work,done):
         self.busy=True;self.button.configure(state='disabled')
+        self.progress.configure(mode='indeterminate');self.progress.pack(anchor='w',pady=8);self.progress.start(15)
+        self.progress_text.set('İşlem sürüyor…')
         def worker():
             try: result=work(); error=False
             except Exception: result=None; error=True
             def finish():
                 self.busy=False; self.button.configure(state='normal')
+                self.progress.stop()
                 if error:
+                    self.progress.pack_forget();self.progress_text.set('Tamamlanamadı — yeniden deneyebilirsiniz.')
                     self.state.set('Güncelleme tamamlanamadı. Bağlantıyı kontrol edip yeniden deneyin; mevcut sürüm çalışmaya devam eder.')
-                else: done(result)
+                else:
+                    self.progress.pack_forget();self.progress_text.set('İşlem tamamlandı.')
+                    done(result)
             self.app.bridge.post(finish)
         threading.Thread(target=worker,daemon=True).start()
 
@@ -50,7 +59,9 @@ class UpdatePanel:
         if self.release is not None:
             self.state.set('Güncelleme indiriliyor ve doğrulanıyor. Görüşmeye devam edebilirsiniz.')
             folder=Path(os.environ.get('LOCALAPPDATA',str(Path.home())))/'AnamnezAsistani'/'updates'
-            self.task(lambda:download_update(self.release,folder),self.downloaded);return
+            def progress(done,total):
+                self.app.bridge.post(lambda:self._download_progress(done,total))
+            self.task(lambda:download_update(self.release,folder,progress),self.downloaded);return
         self.state.set('Yeni sürüm kontrol ediliyor…')
         self.task(lambda:check_updates(VERSION),self.checked)
 
@@ -66,3 +77,10 @@ class UpdatePanel:
         self.package=path
         self.state.set('Paket imzası ve dosya bütünlüğü doğrulandı. Görüşmenizi kaydedip kurulumu başlatın.')
         self.button.configure(text='Güncelle ve yeniden başlat')
+        self.progress_text.set('%100 — paket doğrulandı, kurulum hazır.')
+
+    def _download_progress(self,done,total):
+        if not self.busy:return
+        percent=min(99,int(done*100/total))
+        self.progress.stop();self.progress.configure(mode='determinate',value=percent)
+        self.progress_text.set(f'%{percent} — {done/1048576:.1f} / {total/1048576:.1f} MB' if done<total else 'İndirme bitti; dosya özeti doğrulanıyor…')

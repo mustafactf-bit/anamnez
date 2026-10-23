@@ -10,6 +10,7 @@ class WorkerBridge:
     def __init__(self,root):
         self.root=root;self.queue=queue.Queue();self.closed=False
         self.busy=False
+        self.on_start=None;self.on_finish=None
         self.token=root.after(50,self._poll)
 
     def post(self,callback):
@@ -24,12 +25,19 @@ class WorkerBridge:
             callback()
         if not self.closed:self.token=self.root.after(50,self._poll)
 
-    def start(self,work,success,failure) -> bool:
+    def start(self,work,success,failure,label=None) -> bool:
         """Return false while another model/network operation is active."""
         if self.busy or self.closed:return False
         self.busy=True
+        if self.on_start:self.on_start(label)
         def finish(callback,result):
-            self.busy=False;callback(result)
+            self.busy=False
+            failed=callback is failure
+            try:callback(result)
+            except Exception:
+                failed=True;raise
+            finally:
+                if self.on_finish and not self.closed:self.on_finish(failed)
         def run():
             try:
                 result=work()

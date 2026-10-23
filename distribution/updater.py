@@ -92,13 +92,14 @@ def check_updates(current, reader=fetch):
     except Exception as error:
         raise UpdateError('Güncelleme kontrol edilemedi; internet bağlantısını kontrol edin.') from error
 
-def download_update(release, directory):
+def download_update(release, directory, progress=None):
     """Stage atomically; interrupted downloads never become executable candidates."""
     if not allowed_url(release.url): raise UpdateError('Geçersiz paket adresi.')
     directory = Path(directory); directory.mkdir(parents=True, exist_ok=True)
     target = directory / f'Anamnez-{release.version}-Kurulum.exe'
     part = target.with_suffix('.partial')
     digest = hashlib.sha256(); total = 0
+    if progress:progress(0,release.size)
     try:
         request = urllib.request.Request(release.url,headers={'User-Agent':'AnamnezAsistani-Updater'})
         with urllib.request.urlopen(request,timeout=30) as response, part.open('wb') as output:
@@ -106,6 +107,7 @@ def download_update(release, directory):
                 total += len(chunk)
                 if total > release.size: raise UpdateError('Paket boyutu uyuşmuyor.')
                 digest.update(chunk); output.write(chunk)
+                if progress:progress(total,release.size)
         if total != release.size or digest.hexdigest() != release.sha256:
             raise UpdateError('İndirilen paket doğrulanamadı; kurulum başlatılmadı.')
         part.replace(target)

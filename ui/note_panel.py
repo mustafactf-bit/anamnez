@@ -75,6 +75,8 @@ class NotePanel:
         else:
             self.preview_frame.pack(side='bottom',fill='x',after=self.files_row,pady=(0,6))
             self.preview_toggle.configure(text='Aktarım önizlemesini gizle')
+        if not self.app.bridge.busy:
+            self.app.status.set('Aktarım önizlemesi açıldı; bu işlem onay vermez.' if self.preview_frame.winfo_manager() else 'Aktarım önizlemesi kapatıldı. Taslakta düzenlemeye devam edebilirsiniz.')
 
     def update_mode_notice(self):
         self.mode_notice.set('TEST MODU AÇIK — ham metin test kaydına yazılabilir; yalnızca sentetik/izinli veri kullanın.'
@@ -96,6 +98,7 @@ class NotePanel:
         self.review_frame.pack_forget()
         self._source=self.sources()
         self.invalidate('İnceleme tamamlandı. Son metni onaylayabilirsiniz.')
+        self.app.status.set('İnceleme tamamlandı. Son metni kontrol edip Onayla ve kopyala seçin.')
 
     def show_selection_details(self):
         if self.details_window is not None and self.details_window.winfo_exists():self.details_window.lift();return
@@ -180,6 +183,7 @@ class NotePanel:
         transcript=self.app.dictation_text.get('1.0','end-1c').strip()
         if transcript==self.app._dictation_applied:transcript=''
         self._set_body(build_note_body(self.app.values,transcript))
+        self.app.status.set('Taslak yeniden hazırlandı. Kontrol edip onaylayın.')
         return True
 
     def complete(self):

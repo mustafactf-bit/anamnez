@@ -3,6 +3,7 @@ import json
 import re
 import threading
 import time
+import sys
 import tkinter as tk
 import urllib.parse
 import urllib.request
@@ -36,16 +37,19 @@ from ai.encounter_extractor import extract_encounter
 from ai.dictation_corrector import CorrectionResult
 from speech.dictation_pipeline import ProcessedDictation
 from ui.design import apply_design, wheel_scroll
+from ui.activity import ActivityPanel
+from ui.onboarding import Onboarding
 
 class AnamnezApp:
     def __init__(self, root):
         self.root = root
         apply_design(root)
-        self.root.title("Anamnez Asistanı V2-alpha1.4")
+        self.root.title("Anamnez Asistanı V2-alpha1.5")
         self.root.geometry(f"{min(1180,root.winfo_screenwidth()-60)}x{min(850,root.winfo_screenheight()-90)}")
         self.root.minsize(960, 640)
         self.values = dict(INITIAL_DATA)
         self.entries = {}
+        self.busy_buttons=[];self._button_states=[]
         self.entry_variables = {}
         self._dictation_applied = ''
         self._test_raw_transcript = ''
@@ -73,6 +77,8 @@ class AnamnezApp:
             self.status.set('Ayar dosyası okunamadı; varsayılanlar kullanılıyor. Ayarları kontrol edin.')
 
     def _build_ui(self):
+        self.status = tk.StringVar(value='Hazır. Dikteyi başlatabilir veya manuel alanları doldurabilirsiniz.')
+        self.onboarding=Onboarding(self)
         header = ttk.Frame(self.root, padding=(12, 10))
         header.pack(fill="x")
         assets=Path(__file__).resolve().parents[1]/'assets'
@@ -88,7 +94,10 @@ class AnamnezApp:
             wraplength=650,
         ).pack(anchor="w", pady=(4, 0))
         ttk.Label(header_text,text='Yerel dikte ve AI  •  Son karar hekimde',style='Badge.TLabel').pack(anchor='w',pady=(8,0))
-        ttk.Button(header,text='Kullanım kılavuzu  ·  F1',command=self._open_guide).pack(side='right',padx=(8,0))
+        help_buttons=ttk.Frame(header);help_buttons.pack(side='right',padx=(8,0))
+        ttk.Button(help_buttons,text='Kullanım kılavuzu  ·  F1',command=self._open_guide).pack(fill='x')
+        ttk.Button(help_buttons,text='Kullanım turu  ·  F2',command=self.onboarding.open).pack(fill='x',pady=(4,0))
+        self.activity=ActivityPanel(self.root,self.status)
 
         self.tabs = ttk.Notebook(self.root)
         self.tabs.pack(fill="both", expand=True, padx=10, pady=(0, 10))
@@ -108,6 +117,7 @@ class AnamnezApp:
         self.tabs.add(clinical_frame, text='Klinik Asistan')
         self.clinical = ClinicalAssistantTab(self, clinical_frame)
         settings_frame = ttk.Frame(self.tabs, padding=8)
+        self.settings_frame=settings_frame
         self.tabs.add(settings_frame, text='Ayarlar')
         settings_canvas = tk.Canvas(settings_frame, highlightthickness=0)
         settings_scroll = ttk.Scrollbar(settings_frame, orient='vertical', command=settings_canvas.yview)
@@ -126,17 +136,19 @@ class AnamnezApp:
         self.dictation_text.bind('<<Modified>>', self._transcript_changed)
         for variable in self.entry_variables.values():
             variable.trace_add('write', lambda *_: None if self._suppress_source_changes else self.note_panel.source_changed())
-        self.status = tk.StringVar(value="Hazır.")
         footer=ttk.Frame(self.root)
         footer.pack(fill='x')
         self.model_progress=ModelDownloadProgress(footer)
-        ttk.Label(footer, textvariable=self.status, anchor="w", padding=(12, 4),wraplength=700).pack(side='left',fill="x",expand=True)
-        self.speech_engine.on_progress=lambda event:self.bridge.post(lambda:self.model_progress.update(event))
+        ttk.Label(footer,text='Yerel dikte ve AI  •  F1: Kılavuz  •  F2: Kullanım turu',anchor='w',padding=(12,4)).pack(side='left',fill='x',expand=True)
+        self.speech_engine.on_progress=lambda event:self.bridge.post(lambda:self._model_progress(event))
+        self.bridge.on_start=self._start_feedback
+        self.bridge.on_finish=self._finish_feedback
         def focus_draft(_event=None):
             self.tabs.select(self.output_tab);self.note_panel.editor.focus_set();return 'break'
         def next_tab(_event=None):
             self.tabs.select((self.tabs.index('current')+1)%len(self.tabs.tabs()));return 'break'
         shortcuts={'<F1>':lambda _e:(self._open_guide(),'break')[-1],
+                   '<F2>':lambda _e:(self.onboarding.open(),'break')[-1],
                    '<F6>':focus_draft,'<Control-Tab>':next_tab,
                    '<Control-n>':lambda _e:(self._new_visit(),'break')[-1],
                    '<Control-o>':lambda _e:(self._load_json(),'break')[-1]}
@@ -150,11 +162,27 @@ class AnamnezApp:
                     widget.bind('<ISO_Left_Tab>',lambda e:(e.widget.tk_focusPrev().focus_set(),'break')[-1])
             for child in widget.winfo_children():text_shortcuts(child)
         text_shortcuts(self.root)
+        if getattr(sys,'frozen',False) and '--package-smoke' not in sys.argv:
+            self.root.after(400,self.onboarding.first_run)
+
+    def _model_progress(self,event):
+        self.model_progress.update(event);self.activity.progress(event)
+
+    def _start_feedback(self,label):
+        self._button_states=[(button,str(button['state'])) for button in self.busy_buttons]
+        for button,_ in self._button_states:button.configure(state='disabled')
+        self.activity.begin(label)
+
+    def _finish_feedback(self,error):
+        for button,state in self._button_states:button.configure(state=state)
+        self._button_states=[]
+        self.activity.finish(error,self._review_pending)
 
     def _open_guide(self):
         guide=Path(__file__).resolve().parents[1]/'assets'/'kullanim-kilavuzu.html'
         if not webbrowser.open(guide.as_uri()):
             messagebox.showinfo('Kullanım kılavuzu',f'Kılavuz dosyasını tarayıcınızda açın:\n{guide}')
+        elif not self.bridge.busy:self.status.set('Kullanım kılavuzu tarayıcıya gönderildi. Uygulamaya dönerek devam edebilirsiniz.')
 
     def _build_form(self):
         canvas = tk.Canvas(self.form_tab, highlightthickness=0)
@@ -281,7 +309,7 @@ class AnamnezApp:
         from ai.model_setup import install_model
         self.model_progress.reset()
         self.status.set('Yerel anamnez AI modeli indiriliyor; bu yalnızca ilk kurulumdur.')
-        def progress(event):self.bridge.post(lambda:self.model_progress.update(event))
+        def progress(event):self.bridge.post(lambda:self._model_progress(event))
         def done(path):
             self.settings.model_path=path
             try:save_settings(self.settings)
@@ -638,6 +666,7 @@ class AnamnezApp:
         self._dictation_applied = ''
         self.note_panel.clear_selection_details()
         self.bridge.close()
+        self.activity.close()
         # Native inference cannot be safely interrupted; daemon jobs finish or exit
         # with the process, without posting callbacks to the destroyed window.
         self.root.destroy()

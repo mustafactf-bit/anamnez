@@ -48,5 +48,5 @@ jobs:
           if ($process.ExitCode -ne 0 -or !(Test-Path $report)) { throw 'Local clinical model smoke failed' }
       - uses: actions/upload-artifact@v4
         with:
-          name: Anamnez-alpha1.4-Windows
+          name: Anamnez-alpha1.5-Windows
           path: dist/Anamnez-Asistani-Kurulum.exe

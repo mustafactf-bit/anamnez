@@ -1,4 +1,9 @@
-# Anamnez Asistanı V2-alpha1.4
+# Anamnez Asistanı V2-alpha1.5
+
+Her sekmede görünür işlem aşaması, hareketli gösterge, geçen süre ve net sonuç
+durumu bulunur. Model/güncelleme indirmeleri gerçek yüzde gösterir; diğer işlerde
+uydurma yüzde yoktur. İlk açılış turu atlanabilir ve F2 ile yeniden açılabilir.
+[Alpha1.5 sürüm notları](docs/ALPHA1_5.md).
 
 Hekim odaklı yeni arayüz: belirgin ana düğmeler, büyük düzenleme alanı,
 isteğe bağlı aktarım önizlemesi ve gruplandırılmış ayarlar.

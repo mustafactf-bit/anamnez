@@ -1,0 +1,58 @@
+name: Stage verified installer
+on:
+  push:
+    branches: [codex/unified-v2-alpha]
+    paths: ['.github/workflows/stage-release.yml']
+  workflow_dispatch:
+    inputs:
+      build_run:
+        description: Successful Windows installer run ID
+        required: true
+      expected_sha:
+        description: Immutable source commit matching draft release target
+        required: true
+      release_tag:
+        description: Existing draft release tag
+        required: true
+      artifact_name:
+        description: Installer artifact name in that run
+        required: true
+permissions:
+  actions: read
+  contents: write
+jobs:
+  stage:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify successful immutable build and draft target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BUILD_RUN: ${{ inputs.build_run }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          [[ "$BUILD_RUN" =~ ^[0-9]+$ ]]
+          [[ "$EXPECTED_SHA" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+\.[0-9]+$ ]]
+          test "$(gh run view "$BUILD_RUN" --json workflowName --jq .workflowName)" = 'Windows installer'
+          test "$(gh run view "$BUILD_RUN" --json conclusion --jq .conclusion)" = success
+          test "$(gh run view "$BUILD_RUN" --json headSha --jq .headSha)" = "$EXPECTED_SHA"
+          test "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" = true
+          test "$(gh release view "$RELEASE_TAG" --json targetCommitish --jq .targetCommitish)" = "$EXPECTED_SHA"
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.build_run }}
+          name: ${{ inputs.artifact_name }}
+          path: installer
+      - name: Record digest and upload installer only to draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          sha256sum installer/Anamnez-Asistani-Kurulum.exe
+          stat --printf='INSTALLER_BYTES=%s\n' installer/Anamnez-Asistani-Kurulum.exe
+          gh release upload "$RELEASE_TAG" installer/Anamnez-Asistani-Kurulum.exe

@@ -17,9 +17,11 @@ class ClinicalAssistantTab:
         self.version=0
         ttk.Label(frame,text='Dikte metnini gözden geçirin. Yerel modelin çıkardığı bilgiler otomatik olarak hasta alanlarını değiştirmez.',wraplength=940).pack(anchor='w')
         buttons=ttk.Frame(frame);buttons.pack(fill='x',pady=6)
-        ttk.Button(buttons,text='Dikteden anamnez ve sorular çıkar',command=self.extract).pack(side='left')
-        ttk.Button(buttons,text='Onaylanan anamnezi alanlara aktar',command=self.apply_reviewed).pack(side='left',padx=8)
-        ttk.Button(buttons,text='PubMed’de Ara',command=self.search).pack(side='left',padx=8)
+        self.action_buttons=[]
+        for text,command in (('Dikteden anamnez ve sorular çıkar',self.extract),('Onaylanan anamnezi alanlara aktar',self.apply_reviewed),('PubMed’de Ara',self.search)):
+            button=ttk.Button(buttons,text=text,command=command);button.pack(side='left',padx=(0,8))
+            self.action_buttons.append(button)
+        app.busy_buttons.extend(self.action_buttons)
         ttk.Label(frame,text='Dikkat çeken bilgiler — hekim incelemesi için').pack(anchor='w')
         self.facts=tk.Text(frame,height=7,wrap='word',state='disabled');self.facts.pack(fill='x')
         ttk.Label(frame,text='Literatür sorusu seçin:').pack(anchor='w')
@@ -74,7 +76,7 @@ class ClinicalAssistantTab:
             self._display(self.facts,json.dumps(self.structured,ensure_ascii=False,indent=2))
             self.choice.configure(values=[q['question'] for q in self.questions]);self.choice.current(0);self.select()
             self.app.status.set('Anamnezi ve soruları kontrol edin; araştırılacak soruyu seçin.')
-        self.app.bridge.start(work,done,self.error)
+        self.app.bridge.start(work,done,self.error,label='Yerel AI anamnez ve literatür sorularını hazırlıyor…')
 
     def select(self,_event=None):
         index=self.choice.current()
@@ -86,7 +88,8 @@ class ClinicalAssistantTab:
 
     def apply_reviewed(self):
         """User explicitly accepts extracted facts; missing fields stay untouched."""
-        if not self.structured:return
+        if not self.structured:
+            self.app.status.set('Aktarılacak bilgi yok. Önce dikteden anamnez ve sorular çıkarın.');return
         self.app._read_form()
         mappings={'chief_complaint':'sikayet','history':'ozgecmis','medications':'ilaclar'}
         for source,target in mappings.items():
@@ -99,10 +102,12 @@ class ClinicalAssistantTab:
     def search(self):
         if self.app.bridge.busy:
             self.app.status.set('Devam eden işlemin bitmesini bekleyin.');return
-        if not self.questions:return
+        if not self.questions:
+            self.app.status.set('Aramadan önce anamnezden literatür sorusu oluşturun.');return
         concepts=[x.strip() for x in self.concepts.get().split(';') if x.strip()]
         question=self.question.get().strip()
-        if not question:return
+        if not question:
+            self.app.status.set('Araştırılacak literatür sorusunu girin.');return
         try:query=build_query(concepts)
         except ValueError as error:self.error(error);return
         self._display(self.output,'PubMed taranıyor...')
@@ -138,4 +143,4 @@ class ClinicalAssistantTab:
                     self.output.tag_bind(tag,'<Button-1>',lambda _e,url=url:webbrowser.open(url))
             self.output.configure(state='disabled')
             self.app.status.set('Araştırma tamamlandı; kaynakları klinik bağlamda inceleyin.')
-        self.app.bridge.start(work,done,self.error)
+        self.app.bridge.start(work,done,self.error,label='PubMed taranıyor; ardından kaynaklı özet hazırlanacak…')

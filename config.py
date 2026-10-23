@@ -30,8 +30,8 @@ FIELDS = {
 
 # New encounters are blank. Findings and completed actions must be explicit.
 INITIAL_DATA = {key: '' for key in FIELDS}
-VERSION = '2.0.2-alpha.1.4'
-DISPLAY_VERSION = 'V2-alpha1.4'
+VERSION = '2.0.2-alpha.1.5'
+DISPLAY_VERSION = 'V2-alpha1.5'
 
 
 RECOMMENDATIONS = [
