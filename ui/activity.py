@@ -28,6 +28,7 @@ class ActivityPanel:
             elif self.heading.get()=='KAYIT AÇIK' and self.status.get().startswith(('Kayıt durduruldu','Türkçe transkripsiyon','Yerel yazım','Yerel AI')):
                 self.heading.set('İŞLENİYOR');self.title.configure(foreground='#123454')
         else:
+            self.elapsed.set('')
             text=self.status.get().lower()
             failed=any(word in text for word in ('başarısız','tamamlanamadı','kopyalanamadı','uygulanamadı','indirilemedi'))
             done=any(word in text for word in ('kaydedildi','kopyalandı','yüklendi','görüşme hazır','aktarıldı','inceleme tamamlandı','taslak yeniden hazırlandı'))

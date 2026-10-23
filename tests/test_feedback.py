@@ -52,6 +52,8 @@ class FeedbackTests(unittest.TestCase):
         self.assertEqual(self.app.activity.heading.get(),'TAMAMLANDI')
         self.assertFalse(self.app.activity.bar.winfo_manager())
         self.assertEqual(str(self.app.clinical.action_buttons[0]['state']),'normal')
+        self.app.status.set('Anamnez onaylandı ve panoya kopyalandı.')
+        self.assertEqual(self.app.activity.elapsed.get(),'')
 
     def test_failure_and_review_do_not_claim_completion(self):
         def fail():raise RuntimeError('synthetic')
