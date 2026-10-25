@@ -1,0 +1,25 @@
+name: Miamed ScreenCheck v1.1 - Windows acceptance
+on:
+  push:
+    branches: ['codex/miamed-screencheck-v1-1-*']
+    paths:
+      - 'tools/screencheck/v1.1/**'
+      - '.github/workflows/miamed-screencheck-v1.1.yml'
+  workflow_dispatch:
+jobs:
+  build-acceptance:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Windows executable and run synthetic privacy/UIA acceptance
+        shell: pwsh
+        run: ./tools/screencheck/v1.1/Windows_Test.ps1
+      - name: Upload validated executable (unsigned pilot)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Miamed-Ekran-Kontrol-v1.1-Windows-Unsigned
+          path: tools/screencheck/v1.1/Miamed-Ekran-Kontrol-v1.1.exe
+          if-no-files-found: error
+          retention-days: 14
