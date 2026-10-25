@@ -2,7 +2,7 @@ MİAMED EKRAN KONTROLÜ v1.1 — TEKNİK PİLOT
 
 Teknik geçmiş gerektirmez. Windows 10/11 + .NET Framework 4.x gerektirir.
 ÖNEMLİ: Bu paket kaynak koddan Windows üzerinde ilk açılışta EXE üretir;
-Windows derleme, WinForms testi ve gerçek SMTP teslimi bu oturumda henüz doğrulanmadı.
+Windows derlemesi ve hasta içermeyen sentetik WinForms/UIA kabul testi doğrulandı. Gerçek Miamed ve SMTP teslimi henüz doğrulanmadı.
 BASLAT.cmd dosyasına çift tıklayın. İlk çalıştırmada kaynak kodu Windows'un
 .NET Framework C# derleyicisiyle EXE'ye dönüştürülür; sonraki açılışlar doğrudandır.
 İşlem kurum politikaları nedeniyle engellenirse Windows güvenliğini atlatmaya
@@ -41,7 +41,7 @@ GİZLİLİK
 
 SINIRLAR
 - Kurum/PC izinleri, UIA erişimi, SMTP bağlantısı ve Gmail uygulama şifresi
-  farklı koşullar gerektirir. Gerçek Windows/Miamed üzerinde henüz test edilmedi.
+  farklı koşullar gerektirir. Gerçek Miamed ortamında ve Gmail tesliminde henüz test edilmedi.
 - Derinlik sınırı 28, öğe sınırı 3500, iç tarama sınırı 20 saniye.
   Partial status varsa sonuç bunu açıkça bildirir.
 - Test/araştırma yazılımıdır; doğru hasta/başvuru eşleştirmesi, not ekleme,
