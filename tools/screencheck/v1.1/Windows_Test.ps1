@@ -6,6 +6,23 @@ $folder = Join-Path $env:TEMP ('miamed-v11-accept-' + [guid]::NewGuid().ToString
 New-Item -ItemType Directory -Force -Path $folder | Out-Null
 try {
   if (!(Test-Path -LiteralPath $exe)) { & (Join-Path $PSScriptRoot 'build.ps1') -OutputPath $exe }
+  # Regression: hospital executable uses MIA-Med rather than Miamed.
+  $assembly = [Reflection.Assembly]::LoadFrom($exe)
+  $matcher = $assembly.GetType('MainWindow').GetMethod('IsMiamedLabel', [Reflection.BindingFlags]'NonPublic,Static')
+  if (!$matcher) { throw 'Process name matcher missing.' }
+  $names = @(
+    @{Label='MIA-Med (PID 13056)'; Expected=$true},
+    @{Label='Miamed (PID 123)'; Expected=$true},
+    @{Label='MIA Med (PID 42)'; Expected=$true},
+    @{Label='MIA_Med (PID 42)'; Expected=$true},
+    @{Label='OtherMed (PID 42)'; Expected=$false},
+    @{Label='NotMIA-Med (PID 42)'; Expected=$false},
+    @{Label='MIA-Med (PID abc)'; Expected=$false}
+  )
+  foreach ($case in $names) {
+    if ($matcher.Invoke($null, @($case.Label)) -ne $case.Expected) { throw "Process name regression: $($case.Label)" }
+  }
+  Write-Output 'PASS process-name labels (7/7).'
   $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
   if (!(Test-Path -LiteralPath $compiler)) { $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319\csc.exe' }
   if (!(Test-Path -LiteralPath $compiler)) { throw 'Windows .NET Framework compiler missing.' }

@@ -254,6 +254,11 @@ public class MainWindow : Form {
         ListPrograms();
         if(MailConfig.Read()==null)status.Text="İlk kullanım: 'E-posta ayarları' → Gmail + uygulama şifresi → kurum izni. Sonra bir tuşla rapor.";
     }
+    // The hospital executable can be named MIA-Med, MIA Med, or Miamed.
+    // Match the complete process label, not an arbitrary process containing 'med'.
+    internal static bool IsMiamedLabel(string label) {
+        return System.Text.RegularExpressions.Regex.IsMatch(label ?? "", @"^MIA[\s_-]*Med\s+\(PID\s+\d+\)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    }
     static string ReportsFolder {get {return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),"Miamed-Teknik-Raporlar");}}
     void OpenFolder() { try {Directory.CreateDirectory(ReportsFolder);Process.Start("explorer.exe",ReportsFolder);}catch(Exception){MessageBox.Show("Klasör açılamadı. Belgeler klasörünüzü kontrol edin.");} }
     void ConfigureMail() { using(var dialog=new SetupWindow())dialog.ShowDialog(this);status.Text=MailConfig.Read()==null?"E-posta ayarı yok; rapor yalnızca kaydedilecek.":"E-posta hazır. Taramadan sonra otomatik gönderilecek."; }
@@ -275,7 +280,7 @@ public class MainWindow : Form {
             }catch(Exception){}
             return true;
         },IntPtr.Zero);
-        for(int i=0;i<programs.Items.Count;i++)if(programs.Items[i].ToString().IndexOf("miamed",StringComparison.OrdinalIgnoreCase)>=0){programs.SelectedIndex=i;break;}
+        for(int i=0;i<programs.Items.Count;i++)if(IsMiamedLabel(programs.Items[i].ToString())){programs.SelectedIndex=i;break;}
         if(programs.SelectedIndex<0 && programs.Items.Count>0)status.Text="Miamed otomatik seçilemedi. Program adını bilmiyorsanız bilgi işleme sorun.";
     }
     void RetrySend() {
@@ -292,7 +297,7 @@ public class MainWindow : Form {
     void RunScan() {
         var chosen=programs.SelectedItem as Choice;
         if(chosen==null){MessageBox.Show("Önce Miamed programını seçin.");return;}
-        if(chosen.label.IndexOf("miamed",StringComparison.OrdinalIgnoreCase)<0 &&
+        if(!IsMiamedLabel(chosen.label) &&
            MessageBox.Show("Bu programın adı Miamed olarak görünmüyor. Hastane bilgi işleminden doğru uygulamayı doğruladınız mı? Yanlış uygulamanın teknik metaverisini taramayın.","Program doğrulaması",MessageBoxButtons.YesNo,MessageBoxIcon.Warning)!=DialogResult.Yes)return;
         string section=new[]{"anamnesis","complaint","medical_history","family_history"}[sections.SelectedIndex];
         start.Enabled=false;retry.Enabled=false;setup.Enabled=false;disableMail.Enabled=false;refresh.Enabled=false;programs.Enabled=false;sections.Enabled=false;
